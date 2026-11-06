@@ -60,9 +60,12 @@ src/modules/       One header-only file per task module, holding all of its code
 src/menus/         One console menu per task, plus shared prompts and row printing
 data/              Sample parcels.csv and resources.csv
 tests/             Data structure, integration, load and scripted scenario tests
-docs/              Design spec and implementation plan
 archive/           The earlier draft, kept for reference and never built
 ```
+
+## User manual
+
+See [USER_MANUAL.md](USER_MANUAL.md) for how to use each task menu, a step-by-step walkthrough and troubleshooting.
 
 ## Tests
 
@@ -73,7 +76,3 @@ bash scripts/test.sh
 ```
 
 It checks for banned containers, then runs the data structure tests, the system rules and exception tests, a 500-parcel load test, and scripted menu scenarios.
-
-## Design
-
-See the [design spec](docs/superpowers/specs/2026-11-06-smart-campus-parcel-design.md) for the status rules, priority scores, allocation rules and undo rules.
