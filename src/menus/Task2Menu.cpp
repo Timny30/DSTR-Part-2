@@ -11,8 +11,18 @@ std::string readRequestId() { return Validation::toUpper(Input::readLine("Reques
 void createRequest(ParcelSystem& system) {
     printHeading("1. Create a Service Request");
     std::string parcelId = Validation::toUpper(Input::readLine("Parcel ID: "));
+    Result valid = system.services().validateCreate(parcelId);
+    if (!valid.success) {
+        printResult(valid);
+        return;
+    }
+
+    // A parcel coming from Task 1 already has its service. Follow-up requests ask for one.
+    Parcel* parcel = system.parcels().find(parcelId);
     ServiceType type;
-    if (!promptServiceType(type)) {
+    if (parcel->status == ParcelStatus::Pending && ServiceModule::typeForRoute(parcel->route, type)) {
+        printInfo("Service type from route: " + toString(type) + ".");
+    } else if (!promptServiceType(type)) {
         printInfo("Request cancelled.");
         return;
     }
@@ -86,19 +96,14 @@ void determineNextRequest(ParcelSystem& system) {
 void processAndUpdateRequests(ParcelSystem& system) {
     while (!Input::atEnd()) {
         printHeading("4. Process and Update Service Requests");
-        std::cout << "1. Process next request (assign resource)\n"
-                  << "2. Complete a request\n"
-                  << "3. Cancel a request\n"
-                  << "4. Record a failed delivery (for re-delivery)\n"
+        std::cout << "1. Complete a request\n"
+                  << "2. Cancel a request\n"
+                  << "3. Record a failure\n"
+                  << "4. Report a parcel missing\n"
+                  << "5. Mark a missing parcel as found\n"
                   << "0. Back\n";
-        switch (Input::readChoice("Choice: ", 0, 4)) {
+        switch (Input::readChoice("Choice: ", 0, 5)) {
             case 1: {
-                std::string requestId;
-                std::string resourceId;
-                printResult(system.handleNextRequest(requestId, resourceId));
-                break;
-            }
-            case 2: {
                 std::string requestId = readRequestId();
                 ServiceRequest* request = system.services().find(requestId);
                 std::string recipientId;
@@ -109,11 +114,17 @@ void processAndUpdateRequests(ParcelSystem& system) {
                 printResult(system.completeRequest(requestId, recipientId));
                 break;
             }
-            case 3:
+            case 2:
                 printResult(system.cancelRequest(readRequestId()));
                 break;
+            case 3:
+                printResult(system.recordFailure(readRequestId()));
+                break;
             case 4:
-                printResult(system.failDelivery(readRequestId()));
+                printResult(system.reportMissing(Validation::toUpper(Input::readLine("Parcel ID: "))));
+                break;
+            case 5:
+                printResult(system.markFound(Validation::toUpper(Input::readLine("Parcel ID: "))));
                 break;
             default:
                 return;
@@ -128,7 +139,7 @@ void handleExceptionalConditions(ParcelSystem& system) {
               << "  - Empty set of active requests (no next request)\n"
               << "  - Invalid / non-existent Request ID or Parcel ID\n"
               << "  - Creating a request on a parcel that already has an active one\n"
-              << "  - Creating a request when the parcel is in a final status\n"
+              << "  - Creating a request before the parcel has a route, or when it's in a final status\n"
               << "  - Processing / completing / cancelling an already closed request\n"
               << "  - Incorrect recipient ID at collection time\n"
               << "  - Processing a request that has no resource assigned yet\n"

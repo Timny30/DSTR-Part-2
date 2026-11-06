@@ -45,15 +45,11 @@ Each module may call only the modules listed in its row, which prevents circular
 ### 2.2 Folder layout
 
 ```text
-include/ds/       Stack, Queue, CircularQueue, PriorityQueue, BST, LinkedList
-include/core/     Models, status enums, validation, date/time, Result, input helpers
-include/modules/  One header per module
-include/menus/    Console menu declarations
-include/          ParcelSystem.hpp
-src/core/         Core implementations
-src/modules/      One .cpp per module, except ActivityModule, which is header-only
-src/menus/        One .cpp per task menu, plus shared prompts and row printing
-src/              ParcelSystem.cpp, main.cpp
+src/              ParcelSystem.hpp, ParcelSystem.cpp, main.cpp
+src/ds/           Stack, Queue, CircularQueue, PriorityQueue, BST, LinkedList
+src/core/         Models, status enums, validation, date/time, Result, input helpers
+src/modules/      One header-only file per module, holding all of its code
+src/menus/        One .cpp per task menu, the menu header, shared prompts and row printing
 data/             parcels.csv, resources.csv
 tests/ds/         One test program per data structure
 tests/integration/ System rules and exception tests, and the load test
@@ -103,7 +99,7 @@ CSV rows and Task 5 inserts supply their own Parcel ID. The ID generator always 
 | From | Allowed next status |
 |---|---|
 | Received | Pending |
-| Pending | Processing |
+| Pending | Processing, On Hold |
 | Processing | Ready for Collection, Out for Delivery, Returned, On Hold |
 | Ready for Collection | Collected, Out for Delivery, Processing, On Hold |
 | Out for Delivery | Delivered, Ready for Collection, Processing, On Hold |
@@ -125,33 +121,36 @@ Available, Occupied, Unavailable, Maintenance. Only Available resources can be a
 
 ## 4. End-to-end flow
 
-1. Staff register a parcel: status `Received`, then `Pending` as it joins the queue.
-2. Staff process the next parcel: status `Processing`, then choose a route (section 5).
-3. `ParcelSystem` updates the parcel and creates the matching request.
-4. Staff handle the next request: the highest-scoring request is previewed, and a matching resource is found.
-5. The request is removed from the heap only after a resource is assigned. Resource becomes `Occupied`, request becomes `Processing`.
-6. Staff complete or cancel the request, or mark a delivery failed. Parcel, request and resource all update.
-7. Every step adds an entry to the activity log.
+Each task has one job in the flow:
+
+1. **Task 1, register:** status `Received`, then `Pending` as the parcel joins the queue.
+2. **Task 1, route:** staff choose the next parcel's route (section 5). It stays `Pending`, leaves the queue, and the route is saved. Hold moves it straight to `On Hold`.
+3. **Task 2, create request:** the service type comes from the route, and the parcel becomes `Processing`.
+4. **Task 3, allocate:** the highest-scoring request gets a matching resource. The request leaves the heap only after a resource is assigned. Resource becomes `Occupied`, request becomes `Processing`, and the parcel's status follows section 5.
+5. **Task 2, finish:** staff complete or cancel the request, or record a failure. Parcel, request and resource all update.
+6. Every step adds an entry to the activity log.
+
+Only Task 3 allocates resources, and only Task 2 reports a parcel missing or marks it as found.
 
 ## 5. Task 1: Parcel intake and processing
 
-**Features:** register, list pending, process next, view and search (through T5), update fields, report missing, cancel.
+**Features:** register, list parcels waiting for a route, choose the next parcel's route, change a route, view and search (through T5), update fields, cancel.
 
-**Routing:**
+**Routing:** a parcel only leaves the queue once a route is chosen, so deciding later can't lose it. A route can change until a request is created.
 
-| Route chosen | Parcel status after routing | Request created | Parcel status after completion |
-|---|---|---|---|
-| Collection | Ready for Collection | Recipient Collection | Collected |
-| Delivery | Processing, then Out for Delivery on assignment | Campus Delivery | Delivered |
-| Special handling | Processing | Special Handling | Ready for Collection |
-| Return | Processing | Return to Sender | Returned |
-| Hold | On Hold | None | Not applicable |
+| Route chosen | After routing | After request (T2) | After allocation (T3) | After completion (T2) |
+|---|---|---|---|---|
+| Collection | Pending | Processing | Ready for Collection | Collected |
+| Delivery | Pending | Processing | Out for Delivery | Delivered |
+| Special handling | Pending | Processing | Processing | Ready for Collection |
+| Return | Pending | Processing | Processing | Returned |
+| Hold | On Hold | No request | Not applicable | Not applicable |
 
 After special handling, staff create a follow-up request if the parcel needs delivery.
 
-**Stale queue entries:** if a queued parcel was cancelled, removed, or marked missing, it's skipped when it reaches the front, and the skip is reported to staff.
+**Stale queue entries:** if a queued parcel was cancelled, removed, or reported missing, it's skipped when it reaches the front, and the skip is reported to staff.
 
-**Exceptions:** missing or invalid fields, duplicate Parcel ID, parcel not found, already-final parcel, empty queue, missing parcel.
+**Exceptions:** missing or invalid fields, duplicate Parcel ID, parcel not found, already-final parcel, empty queue, and routing a parcel that isn't Pending, including one reported missing in Task 2.
 
 ## 6. Task 2 and Task 3: Requests and resources
 
@@ -168,15 +167,18 @@ After special handling, staff create a follow-up request if the parcel needs del
 | Return to Sender | 10 | No recipient is waiting |
 | Urgent flag | +50 | Set by staff |
 
-**Features:** create, list active, preview next, process, complete, cancel, return, list closed.
+**Features:** create, list active, preview next, complete, cancel, record a failure, report a parcel missing, mark a parcel as found, list closed.
 
 **Rules:**
 - A parcel may have only one active request.
-- Staff may create a request manually only when the parcel is Processing, Ready for Collection or On Hold.
+- Creating a request moves the parcel to Processing.
+- A Pending parcel needs a route first, and its service type comes from that route.
+- A Ready for Collection or On Hold parcel can get a follow-up request, where staff choose the service type.
 - A Recipient Collection request is completed only if the recipient ID entered matches the parcel.
 - A cancelled request stays in the heap and is skipped when it reaches the top (lazy deletion).
 - Cancelling a request moves its parcel to On Hold so staff can decide what happens next. An assigned resource is freed.
-- A failed delivery cancels the request and returns the parcel to Ready for Collection. Staff may then create a Re-delivery request.
+- Recording a failure cancels the request with a reason and frees its resource. A failed delivery returns the parcel to Ready for Collection, and staff may then create a Re-delivery request. Any other failure moves the parcel to On Hold.
+- Reporting a parcel missing cancels any active request and frees its resource.
 
 **Known limitation:** low-scoring requests can wait a long time at peak. Raising a score as a request waits (ageing) is an optional innovation.
 
@@ -213,12 +215,13 @@ After special handling, staff create a follow-up request if the parcel needs del
 
 | Activity | Reversible? |
 |---|---|
-| Parcel Update, Service Request Creation, Resource Assignment, Cancellation, non-final Status Change | Yes |
+| Parcel Routing, Parcel Update, Service Request Creation, Resource Assignment, Cancellation, non-final Status Change | Yes |
 | Parcel Registration | Only if it's the parcel's only activity |
 | Collection Confirmation, Service Completion, Return Processing, Parcel Removal | No, these are permanent |
 
 **Effects of undo:**
 - Undoing a registration removes the parcel from the BST. Its queue entry is skipped later as stale.
+- Undoing a Parcel Routing removes the route and returns the parcel to the back of the queue, because a queue can't add at the front.
 - Undoing a Resource Assignment frees the resource and pushes the request back into the heap with its original sequence.
 - The original activity is marked `reversed`, and the undo adds its own log entry. Nothing is erased from the log.
 - Undo entries are never pushed back on the stack, so an undo can't itself be undone.
@@ -299,7 +302,7 @@ Setup is the only phase in the current preparation work. Task owners implement p
 | # | Scenario | Required result |
 |---|---|---|
 | 1 | Register a duplicate Parcel ID | Rejected; original record and queue unchanged |
-| 2 | Create a request, then process the same queued parcel | Parcel status is never overwritten from an old copy |
+| 2 | Create a request for a queued parcel with no route | Rejected; parcel stays Pending and in the queue |
 | 3 | Undo a registration | Parcel removed; its queue entry is skipped |
 | 4 | Create a second active request for a parcel | Rejected |
 | 5 | Undo a request-related activity | Parcel, request and resource all return to a consistent state |

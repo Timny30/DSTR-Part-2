@@ -23,17 +23,17 @@ namespace {
         return type == ServiceType::CampusDelivery || type == ServiceType::ReDelivery;
     }
 
-    // The parcel status a new request of this type needs.
-    ParcelStatus statusForNewRequest(ServiceType type, ParcelStatus current) {
+    // The parcel status once a resource has been allocated to this service.
+    ParcelStatus statusAfterAllocation(ServiceType type, ParcelStatus current) {
         switch (type) {
             case ServiceType::RecipientCollection:
                 return ParcelStatus::ReadyForCollection;
             case ServiceType::CampusDelivery:
             case ServiceType::ReDelivery:
-                return current == ParcelStatus::OnHold ? ParcelStatus::Processing : current;
+                return ParcelStatus::OutForDelivery;
             case ServiceType::SpecialHandling:
             case ServiceType::ReturnToSender:
-                return ParcelStatus::Processing;
+                return current;
         }
         return current;
     }
@@ -117,28 +117,6 @@ void ParcelSystem::loadResources(const std::string& path, int& loaded) {
 
 // ---------- Parcel flow ----------
 
-Result ParcelSystem::routeParcel(const std::string& parcelId, ParcelRoute route, bool urgent, std::string& outRequestId) {
-    Parcel* parcel = parcelModule.find(parcelId);
-    if (parcel == nullptr) return Result::fail("Parcel " + parcelId + " was not found.");
-    if (parcel->status != ParcelStatus::Processing) {
-        return Result::fail("Only a parcel in Processing can be routed. Parcel " + parcelId + " is " +
-                            toString(parcel->status) + ".");
-    }
-    switch (route) {
-        case ParcelRoute::Collection:
-            return createRequest(parcelId, ServiceType::RecipientCollection, urgent, outRequestId);
-        case ParcelRoute::Delivery:
-            return createRequest(parcelId, ServiceType::CampusDelivery, urgent, outRequestId);
-        case ParcelRoute::SpecialHandling:
-            return createRequest(parcelId, ServiceType::SpecialHandling, urgent, outRequestId);
-        case ParcelRoute::Return:
-            return createRequest(parcelId, ServiceType::ReturnToSender, urgent, outRequestId);
-        case ParcelRoute::Hold:
-            return parcelModule.changeStatus(parcelId, ParcelStatus::OnHold, currentStaffId);
-    }
-    return Result::fail("Unknown route.");
-}
-
 Result ParcelSystem::updateParcel(const std::string& parcelId, const Parcel& changed) {
     Result updated = parcelModule.updateFields(parcelId, changed, currentStaffId);
     if (updated.success) serviceModule.syncRecipient(*parcelModule.find(parcelId));
@@ -209,11 +187,18 @@ Result ParcelSystem::createRequest(const std::string& parcelId, ServiceType type
     Result valid = serviceModule.validateCreate(parcelId);
     if (!valid.success) return valid;
 
-    // The status change is logged first, so undo reverses the request and then the status.
+    // A parcel coming from Task 1 must get the service its route chose.
     Parcel* parcel = parcelModule.find(parcelId);
-    ParcelStatus needed = statusForNewRequest(type, parcel->status);
-    if (needed != parcel->status) {
-        Result changed = parcelModule.changeStatus(parcelId, needed, currentStaffId);
+    ServiceType routedType;
+    if (parcel->status == ParcelStatus::Pending && ServiceModule::typeForRoute(parcel->route, routedType) &&
+        routedType != type) {
+        return Result::fail("Parcel " + parcelId + " is routed to " + toString(routedType) +
+                            ". Change its route in Task 1 first.");
+    }
+
+    // The status change is logged first, so undo reverses the request and then the status.
+    if (parcel->status != ParcelStatus::Processing) {
+        Result changed = parcelModule.changeStatus(parcelId, ParcelStatus::Processing, currentStaffId);
         if (!changed.success) return changed;
     }
     return serviceModule.create(parcelId, type, urgent, currentStaffId, outRequestId);
@@ -232,7 +217,7 @@ Result ParcelSystem::takeNextRequest(const std::string& chosenResourceId, std::s
     if (!chosenResourceId.empty()) outResourceId = chosenResourceId;
 
     Parcel* parcel = parcelModule.find(request->parcelId);
-    ParcelStatus target = isDeliveryService(request->type) ? ParcelStatus::OutForDelivery : parcel->status;
+    ParcelStatus target = statusAfterAllocation(request->type, parcel->status);
 
     StatusChangeOptions options;
     options.type = ActivityType::ResourceAssignment;
@@ -272,7 +257,7 @@ Result ParcelSystem::completeRequest(const std::string& requestId, const std::st
         return Result::fail("Request " + requestId + " is already " + toString(request->status) + ".");
     }
     if (request->status != RequestStatus::Processing) {
-        return Result::fail("Request " + requestId + " has no resource yet. Process it first.");
+        return Result::fail("Request " + requestId + " has no resource yet. Allocate one in Task 3 first.");
     }
 
     ParcelStatus target = ParcelStatus::ReadyForCollection;
@@ -334,26 +319,33 @@ Result ParcelSystem::cancelRequest(const std::string& requestId) {
     return Result::ok("Request " + requestId + " cancelled. " + changed.message);
 }
 
-Result ParcelSystem::failDelivery(const std::string& requestId) {
+Result ParcelSystem::recordFailure(const std::string& requestId) {
     ServiceRequest* request = serviceModule.find(requestId);
     if (request == nullptr) return Result::fail("Request " + requestId + " was not found.");
-    if (!isDeliveryService(request->type)) return Result::fail("Request " + requestId + " isn't a delivery.");
-    if (request->status != RequestStatus::Processing) {
-        return Result::fail("Request " + requestId + " isn't out for delivery.");
+    if (ServiceModule::isClosed(*request)) {
+        return Result::fail("Request " + requestId + " is already " + toString(request->status) + ".");
     }
+    if (request->status != RequestStatus::Processing) {
+        return Result::fail("Request " + requestId + " has no resource yet. Allocate one in Task 3 first.");
+    }
+
+    // A failed delivery can still be collected. Anything else needs staff to decide what's next.
+    ParcelStatus target = isDeliveryService(request->type) ? ParcelStatus::ReadyForCollection : ParcelStatus::OnHold;
+    std::string reason = toString(request->type) + " failed";
+
     StatusChangeOptions options;
     options.requestId = requestId;
     options.resourceId = request->resourceId;
-    options.note = "Delivery failed";
+    options.note = reason;
     options.hasRequestBefore = true;
     options.requestStatusBefore = RequestStatus::Processing;
     options.resourceIdBefore = request->resourceId;
-    Result changed = parcelModule.changeStatus(request->parcelId, ParcelStatus::ReadyForCollection, currentStaffId, options);
+    Result changed = parcelModule.changeStatus(request->parcelId, target, currentStaffId, options);
     if (!changed.success) return changed;
 
     resourceModule.release(request->resourceId, false);
-    serviceModule.close(*request, RequestStatus::Cancelled, "Delivery failed");
-    return Result::ok("Delivery failed for request " + requestId + ". " + changed.message);
+    serviceModule.close(*request, RequestStatus::Cancelled, reason);
+    return Result::ok("Failure recorded for request " + requestId + ". " + changed.message);
 }
 
 // ---------- Resource flow ----------

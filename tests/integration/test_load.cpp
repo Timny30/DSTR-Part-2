@@ -31,14 +31,20 @@ void testFullFlow() {
     CHECK(registered == PARCELS);
 
     // Route each parcel in turn, skipping Hold, so all four services are used.
+    // Task 1 chooses the route, then Task 2 creates the request.
     int routed = 0;
     for (int i = 0; i < PARCELS; i++) {
         std::string parcelId;
         std::string requestId;
         int skipped = 0;
-        if (!sys.parcels().processNext("S1", parcelId, skipped).success) break;
-        ParcelRoute route = static_cast<ParcelRoute>(i % 4);
-        if (sys.routeParcel(parcelId, route, i % 10 == 0, requestId).success) routed++;
+        if (!sys.parcels().peekNext(parcelId, skipped).success) break;
+        ParcelRoute route = static_cast<ParcelRoute>(i % 4 + 1);
+        ServiceType type = ServiceType::RecipientCollection;
+        ServiceModule::typeForRoute(route, type);
+        if (sys.parcels().routeParcel(parcelId, route, "S1").success &&
+            sys.createRequest(parcelId, type, i % 10 == 0, requestId).success) {
+            routed++;
+        }
     }
     CHECK(routed == PARCELS);
 

@@ -8,6 +8,8 @@
 - Interfaces changed slightly from section 0.5. For example, `ResourceModule` depends on no other module, and `restoreStatus` became `restoreSnapshot`.
 - Exceptions are tested mainly in `tests/integration/test_system.cpp`, through `ParcelSystem`, not as one menu scenario each.
 - `build.sh`, `build.bat` and the VS Code task also compile `src/menus/`, and the VS Code task uses `g++` from the PATH.
+- The five task modules became header-only.
+- `include/` was merged into `src/`, so `include/...` paths in the sections below now live under `src/...`.
 
 The optional innovation items in Phase 5 and all of Phase 6 are still open.
 

@@ -2,12 +2,12 @@
 # Runs all tests. Run from the project folder: bash scripts/test.sh
 set -u
 FAILED=0
-FLAGS="-std=c++17 -g -Wall -Wextra -Iinclude -Itests"
-CORE_SOURCES="src/ParcelSystem.cpp src/core/*.cpp src/modules/*.cpp"
+FLAGS="-std=c++17 -g -Wall -Wextra -Isrc -Itests"
+CORE_SOURCES="src/ParcelSystem.cpp src/core/*.cpp"
 mkdir -p build
 
 echo "== Banned containers =="
-if grep -rnE '#include *<(vector|list|stack|queue|priority_queue|deque|map|set|unordered_map|unordered_set)>' src include; then
+if grep -rnE '#include *<(vector|list|stack|queue|priority_queue|deque|map|set|unordered_map|unordered_set)>' src; then
     echo "FAILED: banned container found"
     FAILED=1
 else
@@ -37,7 +37,7 @@ for test in tests/integration/*.cpp; do
 done
 
 echo "== Scenarios =="
-if g++ $FLAGS src/*.cpp src/core/*.cpp src/modules/*.cpp src/menus/*.cpp -o build/scenario_app.exe; then
+if g++ $FLAGS src/*.cpp src/core/*.cpp src/menus/*.cpp -o build/scenario_app.exe; then
     for input in tests/scenarios/*.in; do
         expected="${input%.in}.expected"
         name=$(basename "$input" .in)

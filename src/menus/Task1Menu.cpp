@@ -20,38 +20,48 @@ void registerParcel(ParcelSystem& system) {
 }
 
 void listPending(ParcelSystem& system) {
-    printHeading("Pending parcels, next first");
+    printHeading("Parcels waiting for a route, next first");
     int count = 0;
     system.parcels().forEachPending([&](const Parcel& parcel) {
         printParcelRow(parcel);
         count++;
     });
-    if (count == 0) printInfo("There are no pending parcels.");
+    if (count == 0) printInfo("There are no parcels waiting for a route.");
 }
 
-void routeParcel(ParcelSystem& system, const std::string& parcelId) {
+// Task 1 only saves the route. The parcel moves on when Task 2 creates its request.
+void promptAndRoute(ParcelSystem& system, const std::string& parcelId) {
     std::cout << "Route:\n  1. Recipient collection\n  2. Campus delivery\n  3. Special handling\n"
               << "  4. Return to sender\n  5. Hold for investigation\n";
     int choice = Input::readChoice("Choice (0 to decide later): ", 0, 5);
     if (choice == 0) {
-        printInfo("Parcel " + parcelId + " stays in Processing.");
+        printInfo("Route for parcel " + parcelId + " wasn't changed.");
         return;
     }
-    ParcelRoute route = static_cast<ParcelRoute>(choice - 1);
-    bool urgent = route != ParcelRoute::Hold && Input::readYesNo("Mark as urgent?");
-    std::string requestId;
-    printResult(system.routeParcel(parcelId, route, urgent, requestId));
+    printResult(system.parcels().routeParcel(parcelId, static_cast<ParcelRoute>(choice), system.staffId()));
 }
 
-void processNext(ParcelSystem& system) {
+void routeNext(ParcelSystem& system) {
     std::string parcelId;
     int skipped = 0;
-    Result result = system.parcels().processNext(system.staffId(), parcelId, skipped);
+    Result result = system.parcels().peekNext(parcelId, skipped);
     if (skipped > 0) printInfo("Skipped " + std::to_string(skipped) + " queue entries that are no longer pending.");
     printResult(result);
     if (result.success) {
         printParcelRow(*system.parcels().find(parcelId));
-        routeParcel(system, parcelId);
+        promptAndRoute(system, parcelId);
+    }
+}
+
+void changeRoute(ParcelSystem& system) {
+    std::string parcelId = readParcelId();
+    Parcel* parcel = system.parcels().find(parcelId);
+    if (parcel == nullptr) {
+        printResult(Result::fail("Parcel " + parcelId + " was not found."));
+    } else if (parcel->status != ParcelStatus::Pending || parcel->route == ParcelRoute::None) {
+        printResult(Result::fail("Only a routed parcel that's still Pending can change route."));
+    } else {
+        promptAndRoute(system, parcelId);
     }
 }
 
@@ -89,22 +99,20 @@ void viewParcel(ParcelSystem& system) {
 
 void runTask1Menu(ParcelSystem& system) {
     while (!Input::atEnd()) {
-        printHeading("Task 1: Parcel Intake and Processing");
-        std::cout << "1. Register a new parcel\n2. List pending parcels\n3. Process next parcel\n"
-                  << "4. Route a parcel in Processing\n5. View a parcel\n6. List parcels by status\n"
-                  << "7. Update parcel details\n8. Report a parcel missing\n9. Mark a missing parcel as found\n"
-                  << "10. Cancel a parcel\n0. Back\n";
-        switch (Input::readChoice("Choice: ", 0, 10)) {
+        printHeading("Task 1: Parcel Intake and Routing");
+        std::cout << "1. Register a new parcel\n2. List parcels waiting for a route\n"
+                  << "3. Choose route for next parcel\n4. Change a parcel's route\n"
+                  << "5. View a parcel\n6. List parcels by status\n"
+                  << "7. Update parcel details\n8. Cancel a parcel\n0. Back\n";
+        switch (Input::readChoice("Choice: ", 0, 8)) {
             case 1: registerParcel(system); break;
             case 2: listPending(system); break;
-            case 3: processNext(system); break;
-            case 4: routeParcel(system, readParcelId()); break;
+            case 3: routeNext(system); break;
+            case 4: changeRoute(system); break;
             case 5: viewParcel(system); break;
             case 6: listByStatus(system); break;
             case 7: printResult(promptAndUpdateParcel(system)); break;
-            case 8: printResult(system.reportMissing(readParcelId())); break;
-            case 9: printResult(system.markFound(readParcelId())); break;
-            case 10: printResult(system.cancelParcel(readParcelId())); break;
+            case 8: printResult(system.cancelParcel(readParcelId())); break;
             default: return;
         }
     }

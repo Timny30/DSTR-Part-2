@@ -5,4 +5,4 @@ ACT0001 | 2026-01-01 09:00 | P0001 | Parcel Registration | Received -> Pending |
 [OK] Activity ACT0001 (Parcel Registration) reversed.
 [ERROR] There are no parcel records.
 [INFO] Skipped 1 queue entries that are no longer pending.
-[ERROR] There are no pending parcels to process.
+[ERROR] There are no pending parcels to route.

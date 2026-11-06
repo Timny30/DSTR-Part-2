@@ -13,14 +13,20 @@ Parcel makeParcel(const std::string& recipientId = "TP012345", const std::string
     return parcel;
 }
 
-// Registers a parcel and takes it to Processing.
+// Registers a parcel, which then waits in the queue for Task 1 to route it.
 std::string startParcel(ParcelSystem& sys, const std::string& recipientId = "TP012345") {
     std::string id;
     sys.parcels().registerNew(makeParcel(recipientId), "S1", id);
-    std::string processed;
-    int skipped = 0;
-    sys.parcels().processNext("S1", processed, skipped);
-    return processed;
+    return id;
+}
+
+// Task 1 chooses the route, then Task 2 creates the request. Hold creates no request.
+Result routeAndRequest(ParcelSystem& sys, const std::string& parcelId, ParcelRoute route, bool urgent,
+                       std::string& outRequestId) {
+    Result routed = sys.parcels().routeParcel(parcelId, route, sys.staffId());
+    ServiceType type;
+    if (!routed.success || !ServiceModule::typeForRoute(route, type)) return routed;
+    return sys.createRequest(parcelId, type, urgent, outRequestId);
 }
 
 std::string addResource(ParcelSystem& sys, ResourceType type) {
@@ -72,7 +78,7 @@ void testProcessing() {
     ParcelSystem sys;
     std::string out;
     int skipped = 0;
-    CHECK(!sys.parcels().processNext("S1", out, skipped).success);  // empty collection
+    CHECK(!sys.parcels().peekNext(out, skipped).success);  // empty collection
 
     std::string first, second, third;
     sys.parcels().registerNew(makeParcel(), "S1", first);
@@ -81,12 +87,146 @@ void testProcessing() {
 
     // A cancelled parcel is skipped, and order is otherwise first in, first out.
     CHECK(sys.cancelParcel(first).success);
-    CHECK(sys.parcels().processNext("S1", out, skipped).success);
+    CHECK(sys.parcels().peekNext(out, skipped).success);
     CHECK(out == second);
     CHECK(skipped == 1);
-    CHECK(sys.parcels().processNext("S1", out, skipped).success);
+
+    // Looking at the next parcel doesn't remove it, so deciding later can't lose it.
+    CHECK(sys.parcels().peekNext(out, skipped).success);
+    CHECK(out == second);
+    CHECK(skipped == 0);
+    CHECK(statusOf(sys, second) == ParcelStatus::Pending);
+
+    // Parcels are routed in arrival order.
+    CHECK(!sys.parcels().routeParcel(third, ParcelRoute::Delivery, "S1").success);
+    CHECK(sys.parcels().routeParcel(second, ParcelRoute::Delivery, "S1").success);
+    CHECK(sys.parcels().peekNext(out, skipped).success);
     CHECK(out == third);
-    CHECK(!sys.parcels().processNext("S1", out, skipped).success);
+    CHECK(sys.parcels().routeParcel(third, ParcelRoute::Collection, "S1").success);
+    CHECK(!sys.parcels().peekNext(out, skipped).success);
+}
+
+void testRouting() {
+    ParcelSystem sys;
+    std::string id = startParcel(sys);
+    std::string req;
+
+    // Task 1 only saves the route. The parcel doesn't reach Processing here.
+    CHECK(!sys.parcels().routeParcel(id, ParcelRoute::None, "S1").success);
+    CHECK(!sys.parcels().routeParcel("P9999", ParcelRoute::Delivery, "S1").success);
+    CHECK(!sys.createRequest(id, ServiceType::CampusDelivery, false, req).success);  // no route yet
+    CHECK(sys.parcels().routeParcel(id, ParcelRoute::Delivery, "S1").success);
+    CHECK(statusOf(sys, id) == ParcelStatus::Pending);
+    CHECK(sys.parcels().find(id)->route == ParcelRoute::Delivery);
+    CHECK(sys.services().activeForParcel(id) == nullptr);
+
+    // A route can change until the request exists, and the request must match it.
+    CHECK(sys.parcels().routeParcel(id, ParcelRoute::Collection, "S1").success);
+    CHECK(!sys.createRequest(id, ServiceType::CampusDelivery, false, req).success);
+    CHECK(statusOf(sys, id) == ParcelStatus::Pending);
+
+    // Creating the request is what moves the parcel to Processing.
+    CHECK(sys.createRequest(id, ServiceType::RecipientCollection, true, req).success);
+    CHECK(statusOf(sys, id) == ParcelStatus::Processing);
+    CHECK(sys.services().find(req)->score == 70);
+    CHECK(!sys.parcels().routeParcel(id, ParcelRoute::Delivery, "S1").success);
+
+    // Hold goes straight to On Hold, and a cancelled parcel can't be routed.
+    ParcelSystem other;
+    std::string held = startParcel(other);
+    CHECK(other.parcels().routeParcel(held, ParcelRoute::Hold, "S1").success);
+    CHECK(statusOf(other, held) == ParcelStatus::OnHold);
+    std::string gone = startParcel(other);
+    CHECK(other.cancelParcel(gone).success);
+    CHECK(!other.parcels().routeParcel(gone, ParcelRoute::Delivery, "S1").success);
+
+    // A parcel reported missing while waiting can't be routed, and Task 1 skips it.
+    ParcelSystem queued;
+    std::string missing = startParcel(queued);
+    std::string waiting = startParcel(queued);
+    CHECK(queued.reportMissing(missing).success);
+    CHECK(!queued.parcels().routeParcel(missing, ParcelRoute::Delivery, "S1").success);
+    std::string out;
+    int skipped = 0;
+    CHECK(queued.parcels().peekNext(out, skipped).success);
+    CHECK(out == waiting);
+    CHECK(skipped == 1);
+    int pendingCount = 0;
+    queued.parcels().forEachPending([&](const Parcel&) { pendingCount++; });
+    CHECK(pendingCount == 1);
+}
+
+void testUndoRouting() {
+    ParcelSystem sys;
+    std::string first = startParcel(sys);
+    std::string second = startParcel(sys);
+    CHECK(sys.parcels().routeParcel(first, ParcelRoute::Delivery, "S1").success);
+
+    // Undoing a route puts the parcel back in the queue, at the back.
+    CHECK(sys.undo(topActivity(sys)).success);
+    CHECK(sys.parcels().find(first)->route == ParcelRoute::None);
+    CHECK(statusOf(sys, first) == ParcelStatus::Pending);
+    std::string out;
+    int skipped = 0;
+    CHECK(sys.parcels().peekNext(out, skipped).success);
+    CHECK(out == second);
+
+    // Undoing a change of route restores the old route, without joining the queue again.
+    CHECK(sys.parcels().routeParcel(second, ParcelRoute::Delivery, "S1").success);
+    CHECK(sys.parcels().routeParcel(second, ParcelRoute::Return, "S1").success);
+    CHECK(sys.undo(topActivity(sys)).success);
+    CHECK(sys.parcels().find(second)->route == ParcelRoute::Delivery);
+    CHECK(sys.parcels().peekNext(out, skipped).success);
+    CHECK(out == first);
+
+    // Undoing Hold returns the parcel to the queue as Pending.
+    CHECK(sys.parcels().routeParcel(first, ParcelRoute::Hold, "S1").success);
+    CHECK(statusOf(sys, first) == ParcelStatus::OnHold);
+    CHECK(sys.undo(topActivity(sys)).success);
+    CHECK(statusOf(sys, first) == ParcelStatus::Pending);
+    CHECK(sys.parcels().peekNext(out, skipped).success);
+    CHECK(out == first);
+}
+
+void testFailureOutcomes() {
+    struct Case {
+        ParcelRoute route;
+        ResourceType resource;
+        ParcelStatus expected;
+    };
+    Case cases[] = {
+        {ParcelRoute::Delivery, ResourceType::DeliveryPersonnel, ParcelStatus::ReadyForCollection},
+        {ParcelRoute::Collection, ResourceType::CollectionCounter, ParcelStatus::OnHold},
+        {ParcelRoute::SpecialHandling, ResourceType::SpecialHandlingCounter, ParcelStatus::OnHold},
+        {ParcelRoute::Return, ResourceType::DeliveryDesk, ParcelStatus::OnHold},
+    };
+    for (const Case& test : cases) {
+        ParcelSystem sys;
+        std::string resource = addResource(sys, test.resource);
+        std::string req, res;
+        std::string p = startParcel(sys);
+        CHECK(routeAndRequest(sys, p, test.route, false, req).success);
+        std::string request = req;
+        CHECK(!sys.recordFailure(request).success);  // no resource yet
+        CHECK(sys.handleNextRequest(req, res).success);
+        ParcelStatus beforeFailure = statusOf(sys, p);
+
+        CHECK(sys.recordFailure(request).success);
+        CHECK(statusOf(sys, p) == test.expected);
+        CHECK(sys.services().find(request)->status == RequestStatus::Cancelled);
+        CHECK(!sys.services().find(request)->note.empty());
+        CHECK(sys.resources().find(resource)->status == ResourceStatus::Available);
+        CHECK(sys.resources().find(resource)->transactions == 0);
+        CHECK(!sys.recordFailure(request).success);  // already closed
+
+        // A failure can be undone while the resource is still free.
+        CHECK(sys.undo(topActivity(sys)).success);
+        CHECK(statusOf(sys, p) == beforeFailure);
+        CHECK(sys.services().find(request)->status == RequestStatus::Processing);
+        CHECK(sys.resources().find(resource)->currentRequestId == request);
+    }
+    ParcelSystem empty;
+    CHECK(!empty.recordFailure("REQ9999").success);
 }
 
 void testStatusRules() {
@@ -94,6 +234,7 @@ void testStatusRules() {
     CHECK(ParcelModule::canTransition(ParcelStatus::OutForDelivery, ParcelStatus::Delivered));
     CHECK(ParcelModule::canTransition(ParcelStatus::Missing, ParcelStatus::OnHold));
     CHECK(ParcelModule::canTransition(ParcelStatus::Pending, ParcelStatus::Missing));
+    CHECK(ParcelModule::canTransition(ParcelStatus::Pending, ParcelStatus::OnHold));
     CHECK(!ParcelModule::canTransition(ParcelStatus::Pending, ParcelStatus::Collected));
     CHECK(!ParcelModule::canTransition(ParcelStatus::ReadyForCollection, ParcelStatus::Delivered));
     CHECK(!ParcelModule::canTransition(ParcelStatus::Collected, ParcelStatus::Processing));
@@ -123,8 +264,8 @@ void testAllRoutes() {
 
     // Collection, including a wrong recipient.
     std::string p1 = startParcel(sys);
-    CHECK(sys.routeParcel(p1, ParcelRoute::Collection, false, req).success);
-    CHECK(statusOf(sys, p1) == ParcelStatus::ReadyForCollection);
+    CHECK(routeAndRequest(sys, p1, ParcelRoute::Collection, false, req).success);
+    CHECK(statusOf(sys, p1) == ParcelStatus::Processing);
     CHECK(!sys.completeRequest(req, "TP012345").success);  // no resource yet
     CHECK(sys.handleNextRequest(req, res).success);
     CHECK(res == counter);
@@ -143,7 +284,7 @@ void testAllRoutes() {
 
     // Delivery.
     std::string p2 = startParcel(sys);
-    CHECK(sys.routeParcel(p2, ParcelRoute::Delivery, false, req).success);
+    CHECK(routeAndRequest(sys, p2, ParcelRoute::Delivery, false, req).success);
     CHECK(statusOf(sys, p2) == ParcelStatus::Processing);
     CHECK(sys.handleNextRequest(req, res).success);
     CHECK(res == rider);
@@ -153,7 +294,7 @@ void testAllRoutes() {
 
     // Special handling ends at Ready for Collection, and a follow-up request is allowed.
     std::string p3 = startParcel(sys);
-    CHECK(sys.routeParcel(p3, ParcelRoute::SpecialHandling, false, req).success);
+    CHECK(routeAndRequest(sys, p3, ParcelRoute::SpecialHandling, false, req).success);
     CHECK(sys.parcels().find(p3)->serviceType == ServiceType::SpecialHandling);
     CHECK(sys.handleNextRequest(req, res).success);
     CHECK(res == room);
@@ -163,7 +304,7 @@ void testAllRoutes() {
 
     // Return.
     std::string p4 = startParcel(sys);
-    CHECK(sys.routeParcel(p4, ParcelRoute::Return, false, req).success);
+    CHECK(routeAndRequest(sys, p4, ParcelRoute::Return, false, req).success);
     std::string returnReq = req;
     CHECK(sys.cancelRequest(sys.services().activeForParcel(p3)->id).success);  // clears p3 so return is next
     CHECK(sys.handleNextRequest(req, res).success);
@@ -173,17 +314,17 @@ void testAllRoutes() {
     CHECK(statusOf(sys, p4) == ParcelStatus::Returned);
     CHECK(sys.services().find(req)->status == RequestStatus::Returned);
 
-    // Hold creates no request, and only a Processing parcel can be routed.
+    // Hold creates no request, and only a Pending parcel can be routed.
     std::string p5 = startParcel(sys);
-    CHECK(sys.routeParcel(p5, ParcelRoute::Hold, false, req).success);
+    CHECK(routeAndRequest(sys, p5, ParcelRoute::Hold, false, req).success);
     CHECK(statusOf(sys, p5) == ParcelStatus::OnHold);
     CHECK(sys.services().activeForParcel(p5) == nullptr);
-    CHECK(!sys.routeParcel(p5, ParcelRoute::Collection, false, req).success);
-    CHECK(!sys.routeParcel("P9999", ParcelRoute::Collection, false, req).success);
+    CHECK(!routeAndRequest(sys, p5, ParcelRoute::Collection, false, req).success);
+    CHECK(!routeAndRequest(sys, "P9999", ParcelRoute::Collection, false, req).success);
 
     // A held parcel can get a request, which moves it on.
     CHECK(sys.createRequest(p5, ServiceType::RecipientCollection, false, req).success);
-    CHECK(statusOf(sys, p5) == ParcelStatus::ReadyForCollection);
+    CHECK(statusOf(sys, p5) == ParcelStatus::Processing);
 }
 
 void testRequestRules() {
@@ -200,11 +341,9 @@ void testRequestRules() {
     CHECK(!sys.createRequest(pendingId, ServiceType::CampusDelivery, false, req).success);  // still queued
     CHECK(statusOf(sys, pendingId) == ParcelStatus::Pending);
 
-    std::string out;
-    int skipped = 0;
-    sys.parcels().processNext("S1", out, skipped);
-    CHECK(sys.createRequest(out, ServiceType::CampusDelivery, false, req).success);
-    CHECK(!sys.createRequest(out, ServiceType::CampusDelivery, false, req).success);  // one active request
+    CHECK(sys.parcels().routeParcel(pendingId, ParcelRoute::Delivery, "S1").success);
+    CHECK(sys.createRequest(pendingId, ServiceType::CampusDelivery, false, req).success);
+    CHECK(!sys.createRequest(pendingId, ServiceType::CampusDelivery, false, req).success);  // one active request
     CHECK(sys.services().find(req)->score == 20);
     CHECK(ServiceModule::scoreFor(ServiceType::SpecialHandling, false) == 40);
     CHECK(ServiceModule::scoreFor(ServiceType::ReDelivery, false) == 30);
@@ -214,11 +353,11 @@ void testRequestRules() {
 void testPriorityOrder() {
     ParcelSystem sys;
     std::string returnReq, collectionReq, deliveryReq, specialReq, urgentReq;
-    sys.createRequest(startParcel(sys), ServiceType::ReturnToSender, false, returnReq);
-    sys.createRequest(startParcel(sys), ServiceType::RecipientCollection, false, collectionReq);
-    sys.createRequest(startParcel(sys), ServiceType::CampusDelivery, false, deliveryReq);
-    sys.createRequest(startParcel(sys), ServiceType::SpecialHandling, false, specialReq);
-    sys.createRequest(startParcel(sys), ServiceType::ReturnToSender, true, urgentReq);
+    routeAndRequest(sys, startParcel(sys), ParcelRoute::Return, false, returnReq);
+    routeAndRequest(sys, startParcel(sys), ParcelRoute::Collection, false, collectionReq);
+    routeAndRequest(sys, startParcel(sys), ParcelRoute::Delivery, false, deliveryReq);
+    routeAndRequest(sys, startParcel(sys), ParcelRoute::SpecialHandling, false, specialReq);
+    routeAndRequest(sys, startParcel(sys), ParcelRoute::Return, true, urgentReq);
 
     // A cancelled request is skipped when it reaches the top.
     CHECK(sys.cancelRequest(specialReq).success);
@@ -240,7 +379,7 @@ void testResourceRules() {
 
     // No suitable resource: the request keeps its place.
     std::string p1 = startParcel(sys);
-    sys.routeParcel(p1, ParcelRoute::Collection, false, req);
+    routeAndRequest(sys, p1, ParcelRoute::Collection, false, req);
     std::string firstReq = req;
     CHECK(!sys.handleNextRequest(req, res).success);
     ServiceRequest* next = nullptr;
@@ -252,10 +391,10 @@ void testResourceRules() {
     std::string desk = addResource(sys, ResourceType::DeliveryDesk);
 
     std::string p2 = startParcel(sys);
-    sys.routeParcel(p2, ParcelRoute::Collection, false, req);
+    routeAndRequest(sys, p2, ParcelRoute::Collection, false, req);
     std::string secondReq = req;
     std::string p3 = startParcel(sys);
-    sys.routeParcel(p3, ParcelRoute::Collection, false, req);
+    routeAndRequest(sys, p3, ParcelRoute::Collection, false, req);
     std::string thirdReq = req;
 
     // Chosen resource errors.
@@ -295,7 +434,7 @@ void testResourceRules() {
     CHECK(req == thirdReq);
     std::string firstPick = res;
     CHECK(sys.completeRequest(thirdReq, "TP012345").success);
-    sys.routeParcel(startParcel(sys), ParcelRoute::Collection, false, req);
+    routeAndRequest(sys, startParcel(sys), ParcelRoute::Collection, false, req);
     CHECK(sys.handleNextRequest(req, res).success);
     CHECK(res != firstPick);
 
@@ -313,9 +452,9 @@ void testResourceLost() {
     std::string req, res, earlierReq;
 
     std::string p1 = startParcel(sys);
-    sys.routeParcel(p1, ParcelRoute::Delivery, false, earlierReq);
+    routeAndRequest(sys, p1, ParcelRoute::Delivery, false, earlierReq);
     std::string p2 = startParcel(sys);
-    sys.routeParcel(p2, ParcelRoute::Delivery, false, req);
+    routeAndRequest(sys, p2, ParcelRoute::Delivery, false, req);
 
     CHECK(sys.handleNextRequest(req, res).success);
     CHECK(req == earlierReq);
@@ -338,16 +477,16 @@ void testFailedDeliveryAndCancel() {
     std::string req, res;
 
     std::string p1 = startParcel(sys);
-    sys.routeParcel(p1, ParcelRoute::Delivery, false, req);
+    routeAndRequest(sys, p1, ParcelRoute::Delivery, false, req);
     std::string delivery = req;
-    CHECK(!sys.failDelivery(delivery).success);  // not out yet
+    CHECK(!sys.recordFailure(delivery).success);  // not out yet
     sys.handleNextRequest(req, res);
-    CHECK(sys.failDelivery(delivery).success);
+    CHECK(sys.recordFailure(delivery).success);
     CHECK(statusOf(sys, p1) == ParcelStatus::ReadyForCollection);
     CHECK(sys.services().find(delivery)->status == RequestStatus::Cancelled);
     CHECK(sys.resources().find(rider)->status == ResourceStatus::Available);
-    CHECK(!sys.failDelivery(delivery).success);
-    CHECK(!sys.failDelivery("REQ9999").success);
+    CHECK(!sys.recordFailure(delivery).success);
+    CHECK(!sys.recordFailure("REQ9999").success);
 
     CHECK(sys.createRequest(p1, ServiceType::ReDelivery, false, req).success);
     CHECK(sys.services().find(req)->score == 30);
@@ -370,7 +509,7 @@ void testFailedDeliveryAndCancel() {
 
     // Reporting a parcel missing does the same.
     std::string p2 = startParcel(sys);
-    sys.routeParcel(p2, ParcelRoute::Delivery, false, req);
+    routeAndRequest(sys, p2, ParcelRoute::Delivery, false, req);
     std::string fourth = req;
     CHECK(sys.reportMissing(p2).success);
     CHECK(sys.services().find(fourth)->status == RequestStatus::Cancelled);
@@ -392,7 +531,7 @@ void testUndoBasics() {
 
     std::string out;
     int skipped = 0;
-    CHECK(!sys.parcels().processNext("S1", out, skipped).success);  // the queue entry is stale
+    CHECK(!sys.parcels().peekNext(out, skipped).success);  // the queue entry is stale
     CHECK(skipped == 1);
 }
 
@@ -401,7 +540,7 @@ void testUndoAssignment() {
     std::string counter = addResource(sys, ResourceType::CollectionCounter);
     std::string req, res;
     std::string p = startParcel(sys);
-    sys.routeParcel(p, ParcelRoute::Collection, false, req);
+    routeAndRequest(sys, p, ParcelRoute::Collection, false, req);
     std::string request = req;
     sys.handleNextRequest(req, res);
 
@@ -410,7 +549,7 @@ void testUndoAssignment() {
     CHECK(sys.services().find(request)->resourceId.empty());
     CHECK(sys.resources().find(counter)->status == ResourceStatus::Available);
     CHECK(sys.resources().find(counter)->currentRequestId.empty());
-    CHECK(statusOf(sys, p) == ParcelStatus::ReadyForCollection);
+    CHECK(statusOf(sys, p) == ParcelStatus::Processing);
 
     // The request can be handled again.
     CHECK(sys.handleNextRequest(req, res).success);
@@ -419,7 +558,7 @@ void testUndoAssignment() {
     // Delivery assignment also restores the parcel's earlier status.
     std::string rider = addResource(sys, ResourceType::DeliveryPersonnel);
     std::string d = startParcel(sys);
-    sys.routeParcel(d, ParcelRoute::Delivery, false, req);
+    routeAndRequest(sys, d, ParcelRoute::Delivery, false, req);
     std::string delivery = req;
     sys.handleNextRequest(req, res);
     CHECK(statusOf(sys, d) == ParcelStatus::OutForDelivery);
@@ -435,13 +574,13 @@ void testUndoCancellation() {
         ParcelSystem sys;
         std::string req;
         std::string p = startParcel(sys);
-        sys.routeParcel(p, ParcelRoute::Collection, false, req);
+        routeAndRequest(sys, p, ParcelRoute::Collection, false, req);
         std::string request = req;
         sys.cancelRequest(request);
         CHECK(statusOf(sys, p) == ParcelStatus::OnHold);
         CHECK(sys.undo(topActivity(sys)).success);
         CHECK(sys.services().find(request)->status == RequestStatus::Pending);
-        CHECK(statusOf(sys, p) == ParcelStatus::ReadyForCollection);
+        CHECK(statusOf(sys, p) == ParcelStatus::Processing);
 
         ServiceRequest* next = nullptr;
         CHECK(sys.services().peekNext(next).success && next->id == request);
@@ -454,7 +593,7 @@ void testUndoCancellation() {
         std::string counter = addResource(sys, ResourceType::CollectionCounter);
         std::string req, res;
         std::string p = startParcel(sys);
-        sys.routeParcel(p, ParcelRoute::Collection, false, req);
+        routeAndRequest(sys, p, ParcelRoute::Collection, false, req);
         std::string request = req;
         sys.handleNextRequest(req, res);
         sys.cancelRequest(request);
@@ -484,10 +623,10 @@ void testUndoCancellation() {
         int skipped = 0;
         sys.parcels().registerNew(makeParcel(), "S1", id);
         sys.reportMissing(id);
-        CHECK(!sys.parcels().processNext("S1", out, skipped).success);
+        CHECK(!sys.parcels().peekNext(out, skipped).success);
         CHECK(sys.undo(topActivity(sys)).success);
         CHECK(statusOf(sys, id) == ParcelStatus::Pending);
-        CHECK(sys.parcels().processNext("S1", out, skipped).success);
+        CHECK(sys.parcels().peekNext(out, skipped).success);
         CHECK(out == id);
     }
     // A failed delivery can be undone.
@@ -496,10 +635,10 @@ void testUndoCancellation() {
         std::string rider = addResource(sys, ResourceType::DeliveryPersonnel);
         std::string req, res;
         std::string p = startParcel(sys);
-        sys.routeParcel(p, ParcelRoute::Delivery, false, req);
+        routeAndRequest(sys, p, ParcelRoute::Delivery, false, req);
         std::string request = req;
         sys.handleNextRequest(req, res);
-        sys.failDelivery(request);
+        sys.recordFailure(request);
         CHECK(sys.undo(topActivity(sys)).success);
         CHECK(statusOf(sys, p) == ParcelStatus::OutForDelivery);
         CHECK(sys.services().find(request)->status == RequestStatus::Processing);
@@ -512,7 +651,7 @@ void testUndoResourceLost() {
     std::string rider = addResource(sys, ResourceType::DeliveryPersonnel);
     std::string req, res;
     std::string p = startParcel(sys);
-    sys.routeParcel(p, ParcelRoute::Delivery, false, req);
+    routeAndRequest(sys, p, ParcelRoute::Delivery, false, req);
     std::string request = req;
     sys.handleNextRequest(req, res);
     sys.setResourceStatus(rider, ResourceStatus::Maintenance);
@@ -534,7 +673,7 @@ void testUndoOrderAndPermanent() {
     addResource(sys, ResourceType::CollectionCounter);
     std::string req, res;
     std::string p = startParcel(sys);
-    sys.routeParcel(p, ParcelRoute::Collection, false, req);
+    routeAndRequest(sys, p, ParcelRoute::Collection, false, req);
     std::string request = req;
     sys.handleNextRequest(req, res);
 
@@ -572,7 +711,7 @@ void testUndoRequestCreationAndUpdate() {
     ParcelSystem sys;
     std::string req;
     std::string p = startParcel(sys);
-    sys.routeParcel(p, ParcelRoute::Collection, false, req);
+    routeAndRequest(sys, p, ParcelRoute::Collection, false, req);
     std::string request = req;
 
     Parcel changed = *sys.parcels().find(p);
@@ -590,8 +729,8 @@ void testUndoRequestCreationAndUpdate() {
     CHECK(sys.services().find(request)->status == RequestStatus::Cancelled);
     CHECK(!sys.parcels().find(p)->hasService);
     CHECK(sys.undo(topActivity(sys)).success);
-    CHECK(statusOf(sys, p) == ParcelStatus::Processing);
-    CHECK(sys.routeParcel(p, ParcelRoute::Delivery, false, req).success);
+    CHECK(statusOf(sys, p) == ParcelStatus::Pending);
+    CHECK(routeAndRequest(sys, p, ParcelRoute::Delivery, false, req).success);
 }
 
 void testOrganisationRules() {
@@ -620,11 +759,11 @@ void testOrganisationRules() {
     changed.status = ParcelStatus::Collected;
     changed.deliveryCompany = "DHL";
     CHECK(sys.updateParcel(p, changed).success);
-    CHECK(statusOf(sys, p) == ParcelStatus::Processing);
+    CHECK(statusOf(sys, p) == ParcelStatus::Pending);
     CHECK(sys.parcels().find(p)->deliveryCompany == "DHL");
 
     // Deletion is blocked by an active request.
-    sys.routeParcel(p, ParcelRoute::Hold, false, req);
+    routeAndRequest(sys, p, ParcelRoute::Hold, false, req);
     CHECK(sys.createRequest(p, ServiceType::CampusDelivery, false, req).success);
     CHECK(!sys.deleteParcel(p).success);
     CHECK(sys.cancelRequest(req).success);
@@ -676,7 +815,7 @@ void testActivityHistory() {
     sys.setStaffId("STAFF7");
     std::string req;
     std::string p = startParcel(sys);
-    sys.routeParcel(p, ParcelRoute::Collection, false, req);
+    routeAndRequest(sys, p, ParcelRoute::Collection, false, req);
 
     long previous = 0;
     bool ordered = true;
@@ -721,7 +860,7 @@ void testDemoData() {
     // Queue order follows the file, while the tree sorts by ID.
     std::string first;
     int skipped = 0;
-    good.parcels().processNext("S1", first, skipped);
+    good.parcels().peekNext(first, skipped);
     CHECK(first == "P0005");
     std::string sortedFirst;
     good.organisation().forEachInOrder([&](const Parcel& parcel) { if (sortedFirst.empty()) sortedFirst = parcel.id; });
@@ -743,6 +882,9 @@ void testDemoData() {
 int main() {
     testRegistration();
     testProcessing();
+    testRouting();
+    testUndoRouting();
+    testFailureOutcomes();
     testStatusRules();
     testAllRoutes();
     testRequestRules();

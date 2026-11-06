@@ -9,8 +9,6 @@
 #include "modules/ResourceModule.hpp"
 #include "modules/ServiceModule.hpp"
 
-enum class ParcelRoute { Collection, Delivery, SpecialHandling, Return, Hold };
-
 // Owns the five modules and handles every action that crosses module boundaries.
 class ParcelSystem {
 public:
@@ -32,7 +30,6 @@ public:
     void forEachLoadWarning(Fn fn) { loadWarnings.forEach(fn); }
 
     // Parcel flow
-    Result routeParcel(const std::string& parcelId, ParcelRoute route, bool urgent, std::string& outRequestId);
     Result updateParcel(const std::string& parcelId, const Parcel& changed);
     Result reportMissing(const std::string& parcelId);
     Result markFound(const std::string& parcelId);
@@ -45,7 +42,7 @@ public:
     Result handleNextRequestWith(const std::string& resourceId, std::string& outRequestId);
     Result completeRequest(const std::string& requestId, const std::string& recipientId);
     Result cancelRequest(const std::string& requestId);
-    Result failDelivery(const std::string& requestId);
+    Result recordFailure(const std::string& requestId);
 
     // Resource flow
     Result setResourceStatus(const std::string& resourceId, ResourceStatus next);
