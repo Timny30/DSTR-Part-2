@@ -10,10 +10,9 @@
                 "-g",
                 "-Wall",
                 "-Wextra",
-                "-Iinclude",
+                "-Isrc",
                 "src/*.cpp",
                 "src/core/*.cpp",
-                "src/modules/*.cpp",
                 "src/menus/*.cpp",
                 "-o",
                 "${workspaceFolder}/assignment.exe"

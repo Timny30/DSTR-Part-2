@@ -46,11 +46,11 @@ The program loads sample parcels and resources from `data/` and asks for a Staff
 ## Project structure
 
 ```text
-include/ds/        Stack, Queue, CircularQueue, PriorityQueue, BST, LinkedList
-include/core/      Models, status enums, validation, date/time, input helpers
-include/modules/   One header per task module
-include/menus/     Console menu declarations
-src/               ParcelSystem and main, with core, modules and menus in subfolders
+src/               ParcelSystem and main
+src/ds/            Stack, Queue, CircularQueue, PriorityQueue, BST, LinkedList
+src/core/          Models, status enums, validation, date/time, input helpers
+src/modules/       One header-only file per task module, holding all of its code
+src/menus/         One console menu per task, plus shared prompts and row printing
 data/              Sample parcels.csv and resources.csv
 tests/             Data structure, integration, load and scripted scenario tests
 docs/              Design spec and implementation plan

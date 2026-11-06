@@ -45,15 +45,11 @@ Each module may call only the modules listed in its row, which prevents circular
 ### 2.2 Folder layout
 
 ```text
-include/ds/       Stack, Queue, CircularQueue, PriorityQueue, BST, LinkedList
-include/core/     Models, status enums, validation, date/time, Result, input helpers
-include/modules/  One header per module
-include/menus/    Console menu declarations
-include/          ParcelSystem.hpp
-src/core/         Core implementations
-src/modules/      One .cpp per module, except ActivityModule, which is header-only
-src/menus/        One .cpp per task menu, plus shared prompts and row printing
-src/              ParcelSystem.cpp, main.cpp
+src/              ParcelSystem.hpp, ParcelSystem.cpp, main.cpp
+src/ds/           Stack, Queue, CircularQueue, PriorityQueue, BST, LinkedList
+src/core/         Models, status enums, validation, date/time, Result, input helpers
+src/modules/      One header-only file per module, holding all of its code
+src/menus/        One .cpp per task menu, the menu header, shared prompts and row printing
 data/             parcels.csv, resources.csv
 tests/ds/         One test program per data structure
 tests/integration/ System rules and exception tests, and the load test
