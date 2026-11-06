@@ -257,7 +257,7 @@ Result ParcelSystem::completeRequest(const std::string& requestId, const std::st
         return Result::fail("Request " + requestId + " is already " + toString(request->status) + ".");
     }
     if (request->status != RequestStatus::Processing) {
-        return Result::fail("Request " + requestId + " has no resource yet. Process it first.");
+        return Result::fail("Request " + requestId + " has no resource yet. Allocate one in Task 3 first.");
     }
 
     ParcelStatus target = ParcelStatus::ReadyForCollection;
