@@ -51,7 +51,7 @@ include/modules/  One header per module
 include/menus/    Console menu declarations
 include/          ParcelSystem.hpp
 src/core/         Core implementations
-src/modules/      One .cpp per module
+src/modules/      One .cpp per module, except ActivityModule, which is header-only
 src/menus/        One .cpp per task menu, plus shared prompts and row printing
 src/              ParcelSystem.cpp, main.cpp
 data/             parcels.csv, resources.csv
