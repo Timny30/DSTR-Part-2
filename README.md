@@ -1,63 +1,72 @@
 # Smart Campus Parcel Collection and Delivery Management System
 
-## Overview
+A C++17 console prototype for CT077-3-2-DSTR Assignment 2. It takes a parcel from arrival on campus to collection, delivery or return, as one integrated system of five modules. The data structures are implemented from scratch, without STL containers.
 
-This is a C++ prototype of a **Smart Campus Parcel Collection and Delivery Management System** developed for Asia Pacific University.  
+## Build and run
 
-The system manages the full lifecycle of parcels arriving on campus: registration, sorting, service requests, resource allocation, activity tracking, and category-based organisation. It is designed to handle high volumes of parcels efficiently while maintaining accurate operational records.
+You need `g++` with C++17 support. Run these commands from the project folder.
 
-## Features
+On Windows:
 
-The system is built as **one integrated C++ application** consisting of five modules:
-
-| Module | Description |
-|--------|-------------|
-| **Task 1** | Parcel Intake, Sorting and Processing |
-| **Task 2** | Parcel Service and Collection Management |
-| **Task 3** | Collection Counter and Delivery Resource Management |
-| **Task 4** | Parcel Activity and Record Management |
-| **Task 5** | Parcel Category Organisation |
-
-### Key Capabilities
-- Register and track parcels with unique IDs
-- Create and prioritise service requests (collection, delivery, special handling, return, re-delivery)
-- Allocate collection counters and delivery resources
-- Maintain full activity history with limited undo support
-- Organise and search parcels using a tree-based structure
-- Handle common exception cases (duplicates, missing records, invalid operations, empty structures, etc.)
-
-## Data Structures
-
-All compulsory data structures are implemented from scratch (no STL `stack`, `queue`, `priority_queue`, `vector`, `list`, or `deque` as substitutes):
-
-- **Stack**
-- **Queue**
-- **Circular Queue**
-- **Priority Queue**
-- **Binary Tree / Binary Search Tree (BST)**
-
-Each structure is meaningfully integrated into the system to solve real operational requirements.
-
-## Tech Stack
-
-- **Language:** C++
-- **Build:** Standard C++ compiler (g++ / clang++ recommended)
-- **No external libraries** required beyond the standard library (containers listed above are forbidden as substitutes)
-
-## Project Structure
 ```bash
-├── src/                  # Source files (.cpp)
-├── include/              # Header files (.hpp / .h)
-├── data/                 # Sample data files (if any)
-├── docs/                 # Additional documentation
-└── README.md
+.\build.bat
 ```
 
-## Building & Running
+In Git Bash, Linux or macOS:
 
 ```bash
-# Compile (example)
-g++ -std=c++17 -Iinclude src/*.cpp -o SmartParcelSystem
+bash build.sh
+```
 
-# Run
-./SmartParcelSystem
+Then start the program:
+
+```bash
+./assignment.exe
+```
+
+The program loads sample parcels and resources from `data/` and asks for a Staff ID, which it records on each activity. In VS Code, the default build task produces the same program.
+
+| Option | Effect |
+|---|---|
+| `--no-demo` | Starts without loading the CSV files |
+| `--fixed-time "YYYY-MM-DD HH:MM"` | Uses a fixed clock, so output is repeatable |
+
+## Modules and data structures
+
+| Task | Module | Main structure | Why it fits |
+|---|---|---|---|
+| 1. Intake and processing | `ParcelModule` | Queue | Parcels are handled in arrival order |
+| 2. Service and collection | `ServiceModule` | Priority queue (binary heap) | The most urgent request goes first, and ties stay in arrival order |
+| 3. Counters and delivery resources | `ResourceModule` | Circular queue | Rotating through each resource type shares work evenly |
+| 4. Activity and records | `ActivityModule` | Stack, plus a linked list log | Undo reverses the most recent action, and the log keeps full history |
+| 5. Parcel organisation | `OrganisationModule` | Binary search tree | Fast lookup by Parcel ID, and in-order traversal gives a sorted list |
+
+`ParcelSystem` owns the modules and handles actions that cross them, such as routing a parcel, completing a request and undo. Each record has one master copy, and other structures store only its ID, so copies can't go out of date.
+
+## Project structure
+
+```text
+include/ds/        Stack, Queue, CircularQueue, PriorityQueue, BST, LinkedList
+include/core/      Models, status enums, validation, date/time, input helpers
+include/modules/   One header per task module
+include/menus/     Console menu declarations
+src/               ParcelSystem and main, with core, modules and menus in subfolders
+data/              Sample parcels.csv and resources.csv
+tests/             Data structure, integration, load and scripted scenario tests
+docs/              Design spec and implementation plan
+archive/           The earlier draft, kept for reference and never built
+```
+
+## Tests
+
+Run the whole suite from Git Bash:
+
+```bash
+bash scripts/test.sh
+```
+
+It checks for banned containers, then runs the data structure tests, the system rules and exception tests, a 500-parcel load test, and scripted menu scenarios.
+
+## Design
+
+See the [design spec](docs/superpowers/specs/2026-11-06-smart-campus-parcel-design.md) for the status rules, priority scores, allocation rules and undo rules.

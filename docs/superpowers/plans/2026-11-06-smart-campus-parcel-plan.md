@@ -2,9 +2,14 @@
 
 **Spec:** [2026-11-06-smart-campus-parcel-design.md](../specs/2026-11-06-smart-campus-parcel-design.md)
 **Goal:** one integrated C++17 prototype covering Tasks 1–5.
-**Who does what:** Claude prepares Phase 0 on `setup/project-structure`. Task owners implement Phases 1–5 so that each member can explain their own work.
+**Who does what:** originally, Claude would prepare Phase 0 and task owners would implement Phases 1–5.
 
-Tick boxes as work finishes. A task is finished only when its "Done when" check passes.
+**Update:** phases 0–5 were then implemented together on `setup/project-structure` at the project member's request, so the boxes below were not ticked one by one. A few details changed during implementation:
+- Interfaces changed slightly from section 0.5. For example, `ResourceModule` depends on no other module, and `restoreStatus` became `restoreSnapshot`.
+- Exceptions are tested mainly in `tests/integration/test_system.cpp`, through `ParcelSystem`, not as one menu scenario each.
+- `build.sh`, `build.bat` and the VS Code task also compile `src/menus/`, and the VS Code task uses `g++` from the PATH.
+
+The optional innovation items in Phase 5 and all of Phase 6 are still open.
 
 ---
 

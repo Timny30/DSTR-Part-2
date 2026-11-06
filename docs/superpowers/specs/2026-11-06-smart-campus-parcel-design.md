@@ -2,7 +2,7 @@
 
 **Module:** CT077-3-2-DSTR, Assignment 2 (30 marks)
 **Date:** 2026-11-06
-**Status:** Awaiting review
+**Status:** Implemented
 
 ## 1. Goal and scope
 
@@ -30,8 +30,8 @@ Each module may call only the modules listed in its row, which prevents circular
 |---|---|---|
 | Interface | `main.cpp` menus | `ParcelSystem` and all module read functions |
 | Coordinator | `ParcelSystem` | All five modules |
-| Workflow | `ResourceModule` (T3) | `ServiceModule`, `ActivityModule` |
-| Workflow | `ServiceModule` (T2) | `ParcelModule`, `ActivityModule` |
+| Workflow | `ResourceModule` (T3) | `core`, `ds` only |
+| Workflow | `ServiceModule` (T2) | `ParcelModule` |
 | Workflow | `ParcelModule` (T1) | `OrganisationModule`, `ActivityModule` |
 | Foundation | `OrganisationModule` (T5) | `core`, `ds` only |
 | Foundation | `ActivityModule` (T4) | `core`, `ds` only |
@@ -40,6 +40,7 @@ Each module may call only the modules listed in its row, which prevents circular
 - Routing a parcel, undo, and CSV loading.
 - Completing or cancelling a request, or cancelling a parcel, because these also free a resource.
 - Deleting a parcel, because the delete must first check for an active request.
+- Marking a resource unavailable mid-job, because that also returns its request to waiting and restores the parcel.
 
 ### 2.2 Folder layout
 
@@ -47,12 +48,15 @@ Each module may call only the modules listed in its row, which prevents circular
 include/ds/       Stack, Queue, CircularQueue, PriorityQueue, BST, LinkedList
 include/core/     Models, status enums, validation, date/time, Result, input helpers
 include/modules/  One header per module
+include/menus/    Console menu declarations
 include/          ParcelSystem.hpp
 src/core/         Core implementations
 src/modules/      One .cpp per module
+src/menus/        One .cpp per task menu, plus shared prompts and row printing
 src/              ParcelSystem.cpp, main.cpp
 data/             parcels.csv, resources.csv
 tests/ds/         One test program per data structure
+tests/integration/ System rules and exception tests, and the load test
 tests/scenarios/  Scripted input files with expected output
 archive/          main_draft.cpp, kept for reference and never built
 ```
@@ -109,7 +113,7 @@ CSV rows and Task 5 inserts supply their own Parcel ID. The ID generator always 
 
 **Final statuses:** Collected, Delivered, Returned and Cancelled. No further change is allowed, except by a permitted undo of a cancellation.
 
-`ParcelModule::changeStatus` is the only function for normal status changes. It checks this table and logs the change. Undo instead restores the saved status through a separate `ParcelModule::restoreStatus`, which only `ParcelSystem` calls, and undo has its own checks (section 7).
+`ParcelModule::changeStatus` is the only function for normal status changes. It checks this table and logs the change. Undo instead restores the saved record through a separate `ParcelModule::restoreSnapshot`, which only `ParcelSystem` calls, and undo has its own checks (section 7).
 
 ### 3.2 Request statuses
 
@@ -286,7 +290,7 @@ Setup is the only phase in the current preparation work. Task owners implement p
 ## 12. Testing
 
 1. **Data structure tests:** one program per structure, covering empty, full and boundary cases, including all three BST delete cases and circular queue wrap-around.
-2. **Scripted scenarios:** input piped into the program, with output compared against expected files. Each exception in the brief has at least one scenario.
+2. **System tests and scripted scenarios:** `tests/integration/test_system.cpp` covers the rules and exceptions in the brief through `ParcelSystem`. The six regression scenarios below pipe input through the real menus and compare the output against expected files.
 3. **Load test:** 500 parcels through the full flow, plus a comparison of BST depth for in-order and shuffled IDs.
 4. **Memory:** structure tests confirm that every allocated node is freed.
 
