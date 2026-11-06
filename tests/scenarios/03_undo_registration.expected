@@ -1,0 +1,8 @@
+[OK] Parcel P0001 registered and queued for processing.
+P0001 | TP0001 | Amy Chan | Pos Laju | Standard Parcel | 2026-01-01 09:00 | No service | Pending
+[INFO] Most recent reversible activity:
+ACT0001 | 2026-01-01 09:00 | P0001 | Parcel Registration | Received -> Pending | Staff S1
+[OK] Activity ACT0001 (Parcel Registration) reversed.
+[ERROR] There are no parcel records.
+[INFO] Skipped 1 queue entries that are no longer pending.
+[ERROR] There are no pending parcels to process.

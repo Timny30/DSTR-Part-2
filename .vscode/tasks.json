@@ -4,10 +4,17 @@
         {
             "type": "shell",
             "label": "C/C++: g++.exe build all files",
-            "command": "C:\\msys64\\ucrt64\\bin\\g++.exe",
+            "command": "g++",
             "args": [
+                "-std=c++17",
                 "-g",
-                "${workspaceFolder}/*.cpp",
+                "-Wall",
+                "-Wextra",
+                "-Iinclude",
+                "src/*.cpp",
+                "src/core/*.cpp",
+                "src/modules/*.cpp",
+                "src/menus/*.cpp",
                 "-o",
                 "${workspaceFolder}/assignment.exe"
             ],

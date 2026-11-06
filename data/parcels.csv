@@ -1,0 +1,9 @@
+parcel_id,recipient_id,recipient_name,delivery_company,parcel_type,arrival
+P0005,TP012345,Amy Chan,Pos Laju,Standard Parcel,2026-11-02 09:15
+P0002,TP012346,Joshua Ananda,J&T Express,Fragile Parcel,2026-11-02 09:40
+P0008,TP012347,Brian Nelson,DHL,Large Parcel,2026-11-02 10:05
+P0001,STF0042,Amina Abu,GDEx,Document,2026-11-02 10:30
+P0004,TP012348,Divinesh Kumar,Ninja Van,Special-Handling Parcel,2026-11-02 11:00
+P0007,TP012345,Amy Chan,Shopee Express,Standard Parcel,2026-11-02 11:25
+P0003,TP012349,Siti Rahman,Pos Laju,Fragile Parcel,2026-11-02 13:10
+P0006,TP012350,Wei Ling Tan,City-Link,Document,2026-11-02 14:45
