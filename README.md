@@ -41,7 +41,14 @@ The program loads sample parcels and resources from `data/` and asks for a Staff
 | 4. Activity and records | `ActivityModule` | Stack, plus a linked list log | Undo reverses the most recent action, and the log keeps full history |
 | 5. Parcel organisation | `OrganisationModule` | Binary search tree | Fast lookup by Parcel ID, and in-order traversal gives a sorted list |
 
-`ParcelSystem` owns the modules and handles actions that cross them, such as routing a parcel, completing a request and undo. Each record has one master copy, and other structures store only its ID, so copies can't go out of date.
+A parcel moves through the tasks in this order:
+
+1. **Task 1:** register the parcel and choose its route. It stays Pending.
+2. **Task 2:** create the service request, which moves the parcel to Processing.
+3. **Task 3:** allocate a counter, desk or delivery person.
+4. **Task 2:** complete the request or record a failure. Reporting a parcel missing also happens in Task 2.
+
+`ParcelSystem` owns the modules and handles actions that cross them, such as creating and completing a request, and undo. Each record has one master copy, and other structures store only its ID, so copies can't go out of date.
 
 ## Project structure
 

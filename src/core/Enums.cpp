@@ -28,6 +28,18 @@ std::string toString(ParcelStatus value) {
     return "Unknown";
 }
 
+std::string toString(ParcelRoute value) {
+    switch (value) {
+        case ParcelRoute::None: return "No route";
+        case ParcelRoute::Collection: return "Recipient Collection";
+        case ParcelRoute::Delivery: return "Campus Delivery";
+        case ParcelRoute::SpecialHandling: return "Special Handling";
+        case ParcelRoute::Return: return "Return to Sender";
+        case ParcelRoute::Hold: return "Hold for Investigation";
+    }
+    return "Unknown";
+}
+
 std::string toString(ServiceType value) {
     switch (value) {
         case ServiceType::RecipientCollection: return "Recipient Collection";
@@ -73,6 +85,7 @@ std::string toString(ResourceStatus value) {
 std::string toString(ActivityType value) {
     switch (value) {
         case ActivityType::ParcelRegistration: return "Parcel Registration";
+        case ActivityType::ParcelRouting: return "Parcel Routing";
         case ActivityType::ParcelUpdate: return "Parcel Update";
         case ActivityType::ServiceRequestCreation: return "Service Request Creation";
         case ActivityType::ResourceAssignment: return "Resource Assignment";

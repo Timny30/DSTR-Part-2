@@ -10,7 +10,8 @@ struct Parcel {
     ParcelType type = ParcelType::Standard;
     std::string arrival;
     ParcelStatus status = ParcelStatus::Received;
-    bool hasService = false;                                  // true once any request has been created
+    ParcelRoute route = ParcelRoute::None;                    // chosen in Task 1
+    bool hasService = false;                                 // true once any request has been created
     ServiceType serviceType = ServiceType::RecipientCollection;  // current or latest request
 };
 

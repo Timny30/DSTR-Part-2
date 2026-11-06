@@ -10,6 +10,9 @@ enum class ParcelStatus {
 };
 const int PARCEL_STATUS_COUNT = 11;
 
+// The next action chosen for a parcel in Task 1.
+enum class ParcelRoute { None, Collection, Delivery, SpecialHandling, Return, Hold };
+
 enum class ServiceType { RecipientCollection, CampusDelivery, SpecialHandling, ReturnToSender, ReDelivery };
 const int SERVICE_TYPE_COUNT = 5;
 
@@ -22,12 +25,13 @@ enum class ResourceStatus { Available, Occupied, Unavailable, Maintenance };
 const int RESOURCE_STATUS_COUNT = 4;
 
 enum class ActivityType {
-    ParcelRegistration, ParcelUpdate, ServiceRequestCreation, ResourceAssignment, StatusChange,
+    ParcelRegistration, ParcelRouting, ParcelUpdate, ServiceRequestCreation, ResourceAssignment, StatusChange,
     CollectionConfirmation, ServiceCompletion, Cancellation, ReturnProcessing, ParcelRemoval, Undo
 };
 
 std::string toString(ParcelType value);
 std::string toString(ParcelStatus value);
+std::string toString(ParcelRoute value);
 std::string toString(ServiceType value);
 std::string toString(RequestStatus value);
 std::string toString(ResourceType value);

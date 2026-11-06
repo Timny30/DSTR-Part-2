@@ -44,11 +44,27 @@ public:
         return urgent ? score + 50 : score;
     }
 
+    // Converts a route chosen in Task 1 into its service. Hold and None have no service.
+    static bool typeForRoute(ParcelRoute route, ServiceType& out) {
+        switch (route) {
+            case ParcelRoute::Collection: out = ServiceType::RecipientCollection; return true;
+            case ParcelRoute::Delivery: out = ServiceType::CampusDelivery; return true;
+            case ParcelRoute::SpecialHandling: out = ServiceType::SpecialHandling; return true;
+            case ParcelRoute::Return: out = ServiceType::ReturnToSender; return true;
+            case ParcelRoute::Hold:
+            case ParcelRoute::None: return false;
+        }
+        return false;
+    }
+
     Result validateCreate(const std::string& parcelId) {
         Parcel* parcel = parcels.find(parcelId);
         if (parcel == nullptr) return Result::fail("Parcel " + parcelId + " was not found.");
-        if (parcel->status != ParcelStatus::Processing && parcel->status != ParcelStatus::ReadyForCollection &&
-            parcel->status != ParcelStatus::OnHold) {
+        if (parcel->status == ParcelStatus::Pending && parcel->route == ParcelRoute::None) {
+            return Result::fail("Parcel " + parcelId + " has no route. Choose its route in Task 1 first.");
+        }
+        if (parcel->status != ParcelStatus::Pending && parcel->status != ParcelStatus::Processing &&
+            parcel->status != ParcelStatus::ReadyForCollection && parcel->status != ParcelStatus::OnHold) {
             return Result::fail("A request can't be created while parcel " + parcelId + " is " +
                                 toString(parcel->status) + ".");
         }

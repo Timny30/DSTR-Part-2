@@ -41,22 +41,59 @@ public:
 
     Result registerWithId(Parcel input, const std::string& staffId) { return addParcel(input, staffId); }
 
-    Result processNext(const std::string& staffId, std::string& outId, int& skippedStale) {
+    // Finds the parcel waiting longest, without taking it out of the queue. It only
+    // leaves once a route is chosen, so deciding later can't lose it.
+    Result peekNext(std::string& outId, int& skippedStale) {
         skippedStale = 0;
         std::string parcelId;
-        while (pending.dequeue(parcelId)) {
-            // A parcel may have been cancelled, removed or reported missing while it waited.
-            Parcel* parcel = organisation.find(parcelId);
-            if (parcel == nullptr || parcel->status != ParcelStatus::Pending) {
-                skippedStale++;
-                continue;
+        while (pending.peek(parcelId)) {
+            if (isWaitingForRoute(organisation.find(parcelId))) {
+                outId = parcelId;
+                return Result::ok("Parcel " + parcelId + " is next to be routed.");
             }
-            Result changed = changeStatus(parcelId, ParcelStatus::Processing, staffId);
-            if (!changed.success) return changed;
-            outId = parcelId;
-            return Result::ok("Parcel " + parcelId + " selected for processing.");
+            // It was cancelled, removed or reported missing while it waited, so drop it.
+            pending.dequeue(parcelId);
+            skippedStale++;
         }
-        return Result::fail("There are no pending parcels to process.");
+        return Result::fail("There are no pending parcels to route.");
+    }
+
+    // Saves the parcel's next action. The first route must follow arrival order, and a
+    // route can be changed until a service request moves the parcel on from Pending.
+    Result routeParcel(const std::string& parcelId, ParcelRoute route, const std::string& staffId) {
+        Parcel* parcel = organisation.find(parcelId);
+        if (parcel == nullptr) return Result::fail("Parcel " + parcelId + " was not found.");
+        if (route == ParcelRoute::None) return Result::fail("Choose a route for parcel " + parcelId + ".");
+        if (parcel->status != ParcelStatus::Pending) {
+            return Result::fail("Only a Pending parcel can be routed. Parcel " + parcelId + " is " +
+                                toString(parcel->status) + ".");
+        }
+
+        bool isFirstRoute = parcel->route == ParcelRoute::None;
+        if (isFirstRoute) {
+            std::string nextId;
+            int skipped = 0;
+            if (!peekNext(nextId, skipped).success || nextId != parcelId) {
+                return Result::fail("Parcels are routed in arrival order. The next parcel is " + nextId + ".");
+            }
+        }
+
+        StatusChangeOptions options;
+        options.type = ActivityType::ParcelRouting;
+        options.note = toString(route);
+        ParcelStatus next = route == ParcelRoute::Hold ? ParcelStatus::OnHold : ParcelStatus::Pending;
+        Result changed = changeStatus(parcelId, next, staffId, options);
+        if (!changed.success) return changed;
+
+        // The log saved the record above, so undo restores the previous route too.
+        if (isFirstRoute) {
+            std::string routedId;
+            pending.dequeue(routedId);
+        }
+        parcel->route = route;
+        if (route == ParcelRoute::Hold) return Result::ok("Parcel " + parcelId + " is now On Hold.");
+        return Result::ok("Parcel " + parcelId + " routed to " + toString(route) +
+                          ". Create its service request in Task 2.");
     }
 
     // The only route for a normal status change. Checks the rules and logs it.
@@ -130,7 +167,7 @@ public:
         Parcel* parcel = organisation.find(saved.id);
         if (parcel == nullptr) return Result::fail("Parcel " + saved.id + " no longer exists.");
         *parcel = saved;
-        if (saved.status == ParcelStatus::Pending && !isQueued(saved.id)) pending.enqueue(saved.id);
+        if (isWaitingForRoute(&saved) && !isQueued(saved.id)) pending.enqueue(saved.id);
         return Result::ok("Parcel " + saved.id + " restored.");
     }
 
@@ -142,7 +179,7 @@ public:
             case ParcelStatus::Received:
                 return to == ParcelStatus::Pending;
             case ParcelStatus::Pending:
-                return to == ParcelStatus::Processing;
+                return to == ParcelStatus::Processing || to == ParcelStatus::OnHold;
             case ParcelStatus::Processing:
                 return to == ParcelStatus::ReadyForCollection || to == ParcelStatus::OutForDelivery ||
                        to == ParcelStatus::Returned || to == ParcelStatus::OnHold;
@@ -168,7 +205,7 @@ public:
     void forEachPending(Fn fn) const {
         pending.forEach([&](const std::string& parcelId) {
             Parcel* parcel = organisation.find(parcelId);
-            if (parcel != nullptr && parcel->status == ParcelStatus::Pending) fn(*parcel);
+            if (isWaitingForRoute(parcel)) fn(*parcel);
         });
     }
 
@@ -208,6 +245,10 @@ private:
         activities.record(activity);
 
         return Result::ok("Parcel " + input.id + " registered and queued for processing.");
+    }
+
+    static bool isWaitingForRoute(const Parcel* parcel) {
+        return parcel != nullptr && parcel->status == ParcelStatus::Pending && parcel->route == ParcelRoute::None;
     }
 
     bool isQueued(const std::string& parcelId) const {
