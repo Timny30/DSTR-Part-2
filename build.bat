@@ -1,5 +1,5 @@
 @echo off
 rem Builds the program as assignment.exe. Run from the project folder.
-g++ -std=c++17 -g -Wall -Wextra -Isrc src/*.cpp src/core/*.cpp src/menus/*.cpp -o assignment.exe
+g++ -std=c++17 -g -Wall -Wextra -Isrc src/*.cpp src/menus/*.cpp -o assignment.exe
 if errorlevel 1 exit /b 1
 echo Built assignment.exe

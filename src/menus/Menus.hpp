@@ -3,7 +3,7 @@
 #include "ParcelSystem.hpp"
 
 // All console output lives in the menus. Row output starts with the record's ID,
-// and messages start with [OK], [ERROR] or [INFO], which the scenario tests rely on.
+// and messages start with [OK], [ERROR] or [INFO].
 void runTask1Menu(ParcelSystem& system);
 void runTask2Menu(ParcelSystem& system);
 void runTask3Menu(ParcelSystem& system);

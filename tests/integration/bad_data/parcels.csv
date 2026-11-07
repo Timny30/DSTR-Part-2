@@ -1,8 +1,0 @@
-parcel_id,recipient_id,recipient_name,delivery_company,parcel_type,arrival
-P0001,TP012345,Amy Chan,Pos Laju,Standard Parcel,2026-11-02 09:15
-P0001,TP012346,Duplicate ID,Pos Laju,Standard Parcel,2026-11-02 09:15
-P0002,TP012347,Too Few Fields,Pos Laju
-P0003,TP012348,Bad Type,Pos Laju,Mystery Box,2026-11-02 09:15
-P0004,TP012349,Bad Time,Pos Laju,Document,yesterday
-
-P0005,TP012350,Too Many,Pos Laju,Document,2026-11-02 09:15,extra

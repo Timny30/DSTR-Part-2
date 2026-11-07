@@ -12,7 +12,6 @@
                 "-Wextra",
                 "-Isrc",
                 "src/*.cpp",
-                "src/core/*.cpp",
                 "src/menus/*.cpp",
                 "-o",
                 "${workspaceFolder}/assignment.exe"

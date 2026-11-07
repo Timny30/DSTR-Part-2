@@ -55,24 +55,12 @@ A parcel moves through the tasks in this order:
 ```text
 src/               ParcelSystem and main
 src/ds/            Stack, Queue, CircularQueue, PriorityQueue, BST, LinkedList
-src/core/          Models, status enums, validation, date/time, input helpers
+src/core/          Header-only models, status enums, validation, date/time, input helpers
 src/modules/       One header-only file per task module, holding all of its code
 src/menus/         One console menu per task, plus shared prompts and row printing
 data/              Sample parcels.csv and resources.csv
-tests/             Data structure, integration, load and scripted scenario tests
-archive/           The earlier draft, kept for reference and never built
 ```
 
 ## User manual
 
 See [USER_MANUAL.md](USER_MANUAL.md) for how to use each task menu, a step-by-step walkthrough and troubleshooting.
-
-## Tests
-
-Run the whole suite from Git Bash:
-
-```bash
-bash scripts/test.sh
-```
-
-It checks for banned containers, then runs the data structure tests, the system rules and exception tests, a 500-parcel load test, and scripted menu scenarios.

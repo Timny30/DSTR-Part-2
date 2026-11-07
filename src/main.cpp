@@ -6,7 +6,7 @@
 #include "core/Validation.hpp"
 #include "menus/Menus.hpp"
 
-// Flags, used by the scripted tests:
+// Optional flags:
 //   --no-demo               start without loading the CSV files
 //   --fixed-time "VALUE"    use a fixed clock, so the output is repeatable
 int main(int argc, char* argv[]) {

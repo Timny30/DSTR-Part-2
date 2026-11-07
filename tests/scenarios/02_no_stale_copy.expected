@@ -1,7 +1,0 @@
-[OK] Parcel P0001 registered and queued for processing.
-P0001 | TP0001 | Amy Chan | Pos Laju | Standard Parcel | 2026-01-01 09:00 | No service | Pending
-[ERROR] Parcel P0001 has no route. Choose its route in Task 1 first.
-[OK] Parcel P0001 is next to be routed.
-P0001 | TP0001 | Amy Chan | Pos Laju | Standard Parcel | 2026-01-01 09:00 | No service | Pending
-[INFO] Route for parcel P0001 wasn't changed.
-P0001 | TP0001 | Amy Chan | Pos Laju | Standard Parcel | 2026-01-01 09:00 | No service | Pending

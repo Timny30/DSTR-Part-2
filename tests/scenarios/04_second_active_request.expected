@@ -1,9 +1,0 @@
-[OK] Parcel P0001 registered and queued for processing.
-P0001 | TP0001 | Amy Chan | Pos Laju | Standard Parcel | 2026-01-01 09:00 | No service | Pending
-[OK] Parcel P0001 is next to be routed.
-P0001 | TP0001 | Amy Chan | Pos Laju | Standard Parcel | 2026-01-01 09:00 | No service | Pending
-[OK] Parcel P0001 routed to Recipient Collection. Create its service request in Task 2.
-[INFO] Service type from route: Recipient Collection.
-[OK] Request REQ0001 created for parcel P0001 with priority score 20.
-[ERROR] Parcel P0001 already has active request REQ0001.
-REQ0001 | P0001 | TP0001 | Amy Chan | Recipient Collection | 2026-01-01 09:00 | Score 20 | Pending
