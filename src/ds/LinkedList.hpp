@@ -1,8 +1,5 @@
 #pragma once
 
-// Singly linked list with a tail pointer. Stores master records.
-// Node addresses never change, so pointers returned by find() stay valid.
-// Append is O(1). Find and forEach are O(n).
 template <typename T>
 class LinkedList {
 public:
@@ -25,7 +22,6 @@ public:
         count++;
     }
 
-    // Returns a pointer to the first item for which pred(item) is true, or nullptr.
     template <typename Pred>
     T* find(Pred pred) {
         for (Node* node = head; node != nullptr; node = node->next) {

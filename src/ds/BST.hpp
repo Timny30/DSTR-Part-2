@@ -1,8 +1,6 @@
 #pragma once
 
-// Binary search tree with unique keys. Holds the master parcel records.
-// Find, insert and remove are O(log n) on average, but O(n) if keys arrive
-// in sorted order, because the tree then degrades into a line.
+
 template <typename K, typename V>
 class BST {
 public:
@@ -11,7 +9,6 @@ public:
     BST(const BST&) = delete;
     BST& operator=(const BST&) = delete;
 
-    // Returns false if the key already exists.
     bool insert(const K& key, const V& value) {
         Node** link = &root;
         while (*link != nullptr) {
@@ -23,7 +20,6 @@ public:
         return true;
     }
 
-    // Returns a pointer to the value, or nullptr if the key isn't found.
     V* find(const K& key) {
         Node* node = root;
         while (node != nullptr) {
@@ -33,7 +29,6 @@ public:
         return nullptr;
     }
 
-    // Returns false if the key isn't found.
     bool remove(const K& key) {
         Node** link = &root;
         while (*link != nullptr && !(key == (*link)->key)) {
@@ -43,8 +38,6 @@ public:
         if (target == nullptr) return false;
 
         if (target->left != nullptr && target->right != nullptr) {
-            // Two children: copy in the in-order successor, the smallest key
-            // on the right, then unlink that node instead. It has no left child.
             Node** successorLink = &target->right;
             while ((*successorLink)->left != nullptr) successorLink = &(*successorLink)->left;
             Node* successor = *successorLink;
@@ -53,7 +46,6 @@ public:
             *successorLink = successor->right;
             delete successor;
         } else {
-            // No child or one child: the parent link skips over the target.
             *link = target->left != nullptr ? target->left : target->right;
             delete target;
         }
@@ -61,11 +53,9 @@ public:
         return true;
     }
 
-    // In-order visits keys in ascending order. Calls fn(key, value).
     template <typename Fn>
     void inOrder(Fn fn) { walkInOrder(root, fn); }
 
-    // Pre-order visits each parent before its children. Calls fn(key, value, depth).
     template <typename Fn>
     void preOrder(Fn fn) { walkPreOrder(root, 0, fn); }
 

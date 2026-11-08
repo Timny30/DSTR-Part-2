@@ -8,11 +8,10 @@
 #include "modules/ActivityModule.hpp"
 #include "modules/OrganisationModule.hpp"
 
-// Extra details logged with a status change.
 struct StatusChangeOptions {
     ActivityType type = ActivityType::StatusChange;
     bool reversible = true;
-    bool allowSameStatus = false;  // log an event that doesn't change the parcel's status
+    bool allowSameStatus = false;  
     std::string requestId;
     std::string resourceId;
     std::string note;
@@ -21,11 +20,6 @@ struct StatusChangeOptions {
     std::string resourceIdBefore;
 };
 
-// Task 1. The queue stores only Parcel IDs, and the master record stays in the
-// BST, so a waiting parcel's details can never go out of date.
-//
-// This module is header-only. Functions defined inside a class are automatically
-// inline, so including this header in several .cpp files is safe.
 class ParcelModule {
 public:
     ParcelModule(OrganisationModule& organisationModule, ActivityModule& activityModule)
@@ -41,8 +35,6 @@ public:
 
     Result registerWithId(Parcel input, const std::string& staffId) { return addParcel(input, staffId); }
 
-    // Finds the parcel waiting longest, without taking it out of the queue. It only
-    // leaves once a route is chosen, so deciding later can't lose it.
     Result peekNext(std::string& outId, int& skippedStale) {
         skippedStale = 0;
         std::string parcelId;
@@ -58,8 +50,6 @@ public:
         return Result::fail("There are no pending parcels to route.");
     }
 
-    // Saves the parcel's next action. The first route must follow arrival order, and a
-    // route can be changed until a service request moves the parcel on from Pending.
     Result routeParcel(const std::string& parcelId, ParcelRoute route, const std::string& staffId) {
         Parcel* parcel = organisation.find(parcelId);
         if (parcel == nullptr) return Result::fail("Parcel " + parcelId + " was not found.");
@@ -85,7 +75,6 @@ public:
         Result changed = changeStatus(parcelId, next, staffId, options);
         if (!changed.success) return changed;
 
-        // The log saved the record above, so undo restores the previous route too.
         if (isFirstRoute) {
             std::string routedId;
             pending.dequeue(routedId);
@@ -96,7 +85,6 @@ public:
                           ". Create its service request in Task 2.");
     }
 
-    // The only route for a normal status change. Checks the rules and logs it.
     Result changeStatus(const std::string& parcelId, ParcelStatus next, const std::string& staffId,
                         const StatusChangeOptions& options = StatusChangeOptions()) {
         Parcel* parcel = organisation.find(parcelId);
@@ -118,7 +106,7 @@ public:
         activity.newStatus = next;
         activity.staffId = staffId;
         activity.note = options.note;
-        // Once a parcel has physically left, the action can't be taken back.
+
         activity.reversible = options.reversible && next != ParcelStatus::Collected &&
                               next != ParcelStatus::Delivered && next != ParcelStatus::Returned;
         activity.hasParcelBefore = true;
@@ -143,7 +131,7 @@ public:
         changed.recipientId = Validation::toUpper(Validation::trim(changed.recipientId));
         changed.recipientName = Validation::trim(changed.recipientName);
         changed.deliveryCompany = Validation::trim(changed.deliveryCompany);
-        changed.status = before.status;  // status only changes through changeStatus
+        changed.status = before.status; 
         changed.arrival = before.arrival;
 
         Result updated = organisation.update(parcelId, changed);
@@ -162,7 +150,7 @@ public:
         return updated;
     }
 
-    // For undo only. Puts a saved record back and rejoins the queue if it was waiting.
+
     Result restoreSnapshot(const Parcel& saved) {
         Parcel* parcel = organisation.find(saved.id);
         if (parcel == nullptr) return Result::fail("Parcel " + saved.id + " no longer exists.");
@@ -200,7 +188,6 @@ public:
 
     Parcel* find(const std::string& parcelId) { return organisation.find(parcelId); }
 
-    // Visits waiting parcels in queue order. Stale entries are left out.
     template <typename Fn>
     void forEachPending(Fn fn) const {
         pending.forEach([&](const std::string& parcelId) {
@@ -228,11 +215,9 @@ private:
         Result inserted = organisation.insert(input);
         if (!inserted.success) return inserted;
 
-        // Keep generated IDs above any ID supplied by a CSV file or a Task 5 insert.
         int number = std::stoi(input.id.substr(1));
         if (number >= nextNumber) nextNumber = number + 1;
 
-        // An undone registration leaves a stale entry behind, which this ID can reuse.
         if (!isQueued(input.id)) pending.enqueue(input.id);
 
         Activity activity;

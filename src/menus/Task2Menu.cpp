@@ -7,7 +7,6 @@ namespace {
 
 std::string readRequestId() { return Validation::toUpper(Input::readLine("Request ID: ")); }
 
-// 1. Create a Service Request
 void createRequest(ParcelSystem& system) {
     printHeading("1. Create a Service Request");
     std::string parcelId = Validation::toUpper(Input::readLine("Parcel ID: "));
@@ -17,7 +16,6 @@ void createRequest(ParcelSystem& system) {
         return;
     }
 
-    // A parcel coming from Task 1 already has its service. Follow-up requests ask for one.
     Parcel* parcel = system.parcels().find(parcelId);
     ServiceType type;
     if (parcel->status == ParcelStatus::Pending && ServiceModule::typeForRoute(parcel->route, type)) {
@@ -31,7 +29,6 @@ void createRequest(ParcelSystem& system) {
     printResult(system.createRequest(parcelId, type, urgent, requestId));
 }
 
-// 2. Maintain Active Service Requests
 void maintainActiveRequests(ParcelSystem& system) {
     while (!Input::atEnd()) {
         printHeading("2. Maintain Active Service Requests");
@@ -77,7 +74,6 @@ void maintainActiveRequests(ParcelSystem& system) {
     }
 }
 
-// 3. Determine the Next Request to be Handled
 void determineNextRequest(ParcelSystem& system) {
     printHeading("3. Determine the Next Request to be Handled");
     printInfo("Rule: SpecialHandling(40) > ReDelivery(30) > Collection/Delivery(20) > Return(10). "
@@ -132,7 +128,6 @@ void processAndUpdateRequests(ParcelSystem& system) {
     }
 }
 
-// 5. Handle Exceptional Service Conditions (info + live demos)
 void handleExceptionalConditions(ParcelSystem& system) {
     printHeading("5. Handle Exceptional Service Conditions");
     std::cout << "The system already rejects or reports these cases:\n"
@@ -168,7 +163,7 @@ void handleExceptionalConditions(ParcelSystem& system) {
         }
         case 3: {
             std::string id = readRequestId();
-            printResult(system.cancelRequest(id));  // will fail if already closed
+            printResult(system.cancelRequest(id));  
             break;
         }
         default:
@@ -176,7 +171,7 @@ void handleExceptionalConditions(ParcelSystem& system) {
     }
 }
 
-}  // namespace
+} 
 
 void runTask2Menu(ParcelSystem& system) {
     while (!Input::atEnd()) {

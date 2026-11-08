@@ -16,7 +16,6 @@ void printParcelRow(const Parcel& parcel) {
               << parcel.deliveryCompany << " | " << toString(parcel.type) << " | " << parcel.arrival << " | "
               << (parcel.hasService ? toString(parcel.serviceType) : "No service") << " | "
               << toString(parcel.status);
-    // The route only matters until a service request moves the parcel on.
     if (parcel.status == ParcelStatus::Pending && parcel.route != ParcelRoute::None) {
         std::cout << " | Route: " << toString(parcel.route);
     }

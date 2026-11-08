@@ -1,8 +1,6 @@
 #pragma once
 #include <string>
 
-// Outcome of a module operation. Modules return this instead of printing,
-// so the rules can be tested and all console output stays in the menus.
 struct Result {
     bool success;
     std::string message;

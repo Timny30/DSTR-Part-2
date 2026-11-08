@@ -6,9 +6,6 @@
 #include "core/Validation.hpp"
 #include "menus/Menus.hpp"
 
-// Optional flags:
-//   --no-demo               start without loading the CSV files
-//   --fixed-time "VALUE"    use a fixed clock, so the output is repeatable
 int main(int argc, char* argv[]) {
     bool loadDemo = true;
     for (int i = 1; i < argc; i++) {

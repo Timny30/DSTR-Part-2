@@ -8,14 +8,12 @@
 #include "ds/PriorityQueue.hpp"
 #include "modules/ParcelModule.hpp"
 
-// Heap entry for one request. The master record stays in the linked list.
 struct RequestKey {
     std::string requestId;
     int score = 0;
     long sequence = 0;
 };
 
-// Higher score first. On a tie, the earlier request goes first.
 struct RequestKeyHigherPriority {
     bool operator()(const RequestKey& a, const RequestKey& b) const {
         if (a.score != b.score) return a.score > b.score;
@@ -23,11 +21,6 @@ struct RequestKeyHigherPriority {
     }
 };
 
-// Task 2. Cancelled requests stay in the heap and are skipped when they reach
-// the top (lazy deletion). This avoids an O(n) search of the heap on every cancel.
-//
-// This module is header-only. Functions defined inside a class are automatically
-// inline, so including this header in several .cpp files is safe.
 class ServiceModule {
 public:
     explicit ServiceModule(ParcelModule& parcelModule) : parcels(parcelModule) {}
@@ -35,16 +28,15 @@ public:
     static int scoreFor(ServiceType type, bool urgent) {
         int score = 0;
         switch (type) {
-            case ServiceType::SpecialHandling: score = 40; break;      // highest risk of damage
-            case ServiceType::ReDelivery: score = 30; break;           // already had a failed delivery
-            case ServiceType::RecipientCollection: score = 20; break;  // the recipient is waiting
-            case ServiceType::CampusDelivery: score = 20; break;       // standard service
-            case ServiceType::ReturnToSender: score = 10; break;       // no recipient is waiting
+            case ServiceType::SpecialHandling: score = 40; break;   
+            case ServiceType::ReDelivery: score = 30; break;      
+            case ServiceType::RecipientCollection: score = 20; break;  
+            case ServiceType::CampusDelivery: score = 20; break;      
+            case ServiceType::ReturnToSender: score = 10; break;       
         }
         return urgent ? score + 50 : score;
     }
 
-    // Converts a route chosen in Task 1 into its service. Hold and None have no service.
     static bool typeForRoute(ParcelRoute route, ServiceType& out) {
         switch (route) {
             case ParcelRoute::Collection: out = ServiceType::RecipientCollection; return true;
@@ -127,7 +119,6 @@ public:
                 out = request;
                 return Result::ok("Next request is " + request->id + ".");
             }
-            // Lazy deletion: this entry was cancelled or already taken, so drop it now.
             heap.pop(key);
             if (request != nullptr) request->inHeap = false;
         }
@@ -142,9 +133,8 @@ public:
         }
     }
 
-    // Keeps the original sequence, so the request keeps its place in line.
     void pushBack(ServiceRequest& request) {
-        if (request.inHeap) return;  // a cancelled entry that was never dropped can be reused
+        if (request.inHeap) return;  
         RequestKey key;
         key.requestId = request.id;
         key.score = request.score;

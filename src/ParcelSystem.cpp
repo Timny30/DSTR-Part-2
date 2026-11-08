@@ -3,7 +3,6 @@
 #include <fstream>
 
 namespace {
-    // Splits one CSV line. Fields can't contain commas. Returns the field count.
     int splitCsv(const std::string& line, std::string fields[], int maxFields) {
         int count = 0;
         size_t start = 0;
@@ -16,14 +15,13 @@ namespace {
             fields[count++] = Validation::trim(line.substr(start, comma - start));
             start = comma + 1;
         }
-        return maxFields + 1;  // more fields than the file format allows
+        return maxFields + 1;
     }
 
     bool isDeliveryService(ServiceType type) {
         return type == ServiceType::CampusDelivery || type == ServiceType::ReDelivery;
     }
 
-    // The parcel status once a resource has been allocated to this service.
     ParcelStatus statusAfterAllocation(ServiceType type, ParcelStatus current) {
         switch (type) {
             case ServiceType::RecipientCollection:
@@ -41,8 +39,6 @@ namespace {
 
 ParcelSystem::ParcelSystem()
     : parcelModule(organisationModule, activityModule), serviceModule(parcelModule), currentStaffId("SYSTEM") {}
-
-// ---------- Demo data ----------
 
 Result ParcelSystem::loadDemoData(const std::string& dataDir) {
     int parcelCount = 0;
@@ -115,8 +111,6 @@ void ParcelSystem::loadResources(const std::string& path, int& loaded) {
     }
 }
 
-// ---------- Parcel flow ----------
-
 Result ParcelSystem::updateParcel(const std::string& parcelId, const Parcel& changed) {
     Result updated = parcelModule.updateFields(parcelId, changed, currentStaffId);
     if (updated.success) serviceModule.syncRecipient(*parcelModule.find(parcelId));
@@ -163,7 +157,7 @@ Result ParcelSystem::markFound(const std::string& parcelId) {
 
 Result ParcelSystem::deleteParcel(const std::string& parcelId) {
     Parcel* parcel = parcelModule.find(parcelId);
-    if (parcel == nullptr) return organisationModule.remove(parcelId);  // gives the right empty/not-found message
+    if (parcel == nullptr) return organisationModule.remove(parcelId);  
 
     ServiceRequest* active = serviceModule.activeForParcel(parcelId);
     if (active != nullptr) {
@@ -181,13 +175,10 @@ Result ParcelSystem::deleteParcel(const std::string& parcelId) {
     return organisationModule.remove(parcelId);
 }
 
-// ---------- Request flow ----------
-
 Result ParcelSystem::createRequest(const std::string& parcelId, ServiceType type, bool urgent, std::string& outRequestId) {
     Result valid = serviceModule.validateCreate(parcelId);
     if (!valid.success) return valid;
 
-    // A parcel coming from Task 1 must get the service its route chose.
     Parcel* parcel = parcelModule.find(parcelId);
     ServiceType routedType;
     if (parcel->status == ParcelStatus::Pending && ServiceModule::typeForRoute(parcel->route, routedType) &&
@@ -196,7 +187,6 @@ Result ParcelSystem::createRequest(const std::string& parcelId, ServiceType type
                             ". Change its route in Task 1 first.");
     }
 
-    // The status change is logged first, so undo reverses the request and then the status.
     if (parcel->status != ParcelStatus::Processing) {
         Result changed = parcelModule.changeStatus(parcelId, ParcelStatus::Processing, currentStaffId);
         if (!changed.success) return changed;
@@ -209,7 +199,6 @@ Result ParcelSystem::takeNextRequest(const std::string& chosenResourceId, std::s
     Result next = serviceModule.peekNext(request);
     if (!next.success) return next;
 
-    // The request only leaves the heap after a resource is found, so it keeps its place otherwise.
     Result assigned = chosenResourceId.empty()
         ? resourceModule.assign(request->type, request->id, request->parcelId, outResourceId)
         : resourceModule.assignChosen(chosenResourceId, request->type, request->id, request->parcelId);
@@ -329,7 +318,6 @@ Result ParcelSystem::recordFailure(const std::string& requestId) {
         return Result::fail("Request " + requestId + " has no resource yet. Allocate one in Task 3 first.");
     }
 
-    // A failed delivery can still be collected. Anything else needs staff to decide what's next.
     ParcelStatus target = isDeliveryService(request->type) ? ParcelStatus::ReadyForCollection : ParcelStatus::OnHold;
     std::string reason = toString(request->type) + " failed";
 
@@ -348,7 +336,6 @@ Result ParcelSystem::recordFailure(const std::string& requestId) {
     return Result::ok("Failure recorded for request " + requestId + ". " + changed.message);
 }
 
-// ---------- Resource flow ----------
 
 Result ParcelSystem::setResourceStatus(const std::string& resourceId, ResourceStatus next) {
     Resource* resource = resourceModule.find(resourceId);
@@ -358,8 +345,6 @@ Result ParcelSystem::setResourceStatus(const std::string& resourceId, ResourceSt
                      (next == ResourceStatus::Unavailable || next == ResourceStatus::Maintenance);
     if (!losingJob) return resourceModule.setStatus(resourceId, next);
 
-    // The resource became unavailable mid-job: its request rejoins the heap with
-    // its original sequence, so it doesn't lose its place.
     ServiceRequest* request = serviceModule.find(resource->currentRequestId);
     if (request == nullptr) return Result::fail("Request " + resource->currentRequestId + " was not found.");
 
@@ -382,7 +367,6 @@ Result ParcelSystem::setResourceStatus(const std::string& resourceId, ResourceSt
     return Result::ok(updated.message + " Request " + request->id + " is waiting again.");
 }
 
-// ---------- Undo ----------
 
 Result ParcelSystem::restoreRequestState(const Activity& activity) {
     ServiceRequest* request = serviceModule.find(activity.requestId);
@@ -434,7 +418,6 @@ Result ParcelSystem::undo(const std::string& activityId) {
         return Result::fail("Only the most recent reversible activity can be undone, which is " + top->id + ".");
     }
 
-    // A later permanent action means this older state can no longer be restored.
     if (activityModule.hasPermanentAfter(activity->parcelId, activity->sequence)) {
         activityModule.popUndoable();
         return Result::fail("Activity " + activityId + " was discarded because parcel " + activity->parcelId +
@@ -450,12 +433,8 @@ Result ParcelSystem::undo(const std::string& activityId) {
     ParcelStatus statusNow = parcel->status;
 
     if (activity->type == ActivityType::ParcelRegistration) {
-        // Reaching here means nothing later still stands: reversible activities would be
-        // above this on the stack, and permanent ones were caught by the check above.
-        // The queue entry stays behind and is skipped as stale.
         organisationModule.remove(activity->parcelId);
     } else {
-        // Touch the request and resource first, because this step can be refused.
         if (!activity->requestId.empty()) {
             Result restored = restoreRequestState(*activity);
             if (!restored.success) return Result::fail("Undo refused, nothing changed. " + restored.message);

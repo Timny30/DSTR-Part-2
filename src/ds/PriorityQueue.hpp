@@ -1,8 +1,5 @@
 #pragma once
 
-// Binary max-heap on a growable array. HigherPriority(a, b) returns true when
-// a must leave before b. Holds active service requests, so the most urgent
-// is always available next. Push and pop are O(log n), peek is O(1).
 template <typename T, typename HigherPriority>
 class PriorityQueue {
 public:
