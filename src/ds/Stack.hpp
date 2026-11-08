@@ -1,7 +1,7 @@
 #pragma once
 
-// Linked last-in-first-out stack. Holds activities that can still be undone,
-// because undo must reverse the most recent action first.
+// Linked last-in-first-out stack. Holds activities that can still be undone
+// undo reverse the most recent action first.
 // Push and pop are O(1).
 template <typename T>
 class Stack {

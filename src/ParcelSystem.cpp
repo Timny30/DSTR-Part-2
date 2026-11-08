@@ -434,7 +434,7 @@ Result ParcelSystem::undo(const std::string& activityId) {
         return Result::fail("Only the most recent reversible activity can be undone, which is " + top->id + ".");
     }
 
-    // A later permanent action means this older state can no longer be restored.
+    // check for later permanent action (older state can no longer be restored).
     if (activityModule.hasPermanentAfter(activity->parcelId, activity->sequence)) {
         activityModule.popUndoable();
         return Result::fail("Activity " + activityId + " was discarded because parcel " + activity->parcelId +
@@ -450,12 +450,10 @@ Result ParcelSystem::undo(const std::string& activityId) {
     ParcelStatus statusNow = parcel->status;
 
     if (activity->type == ActivityType::ParcelRegistration) {
-        // Reaching here means nothing later still stands: reversible activities would be
-        // above this on the stack, and permanent ones were caught by the check above.
-        // The queue entry stays behind and is skipped as stale.
+        // reversible activities would be above this on the stack and permanent ones were caught by the check above.
         organisationModule.remove(activity->parcelId);
     } else {
-        // Touch the request and resource first, because this step can be refused.
+        // Touch the request and resource first
         if (!activity->requestId.empty()) {
             Result restored = restoreRequestState(*activity);
             if (!restored.success) return Result::fail("Undo refused, nothing changed. " + restored.message);
