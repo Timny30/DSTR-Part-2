@@ -1,8 +1,5 @@
 #pragma once
 
-// Linked first-in-first-out queue. Holds parcels waiting to be processed,
-// because parcels must be handled in the order they arrive.
-// Enqueue and dequeue are O(1).
 template <typename T>
 class Queue {
 public:

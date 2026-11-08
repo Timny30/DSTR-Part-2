@@ -6,11 +6,6 @@
 #include "ds/CircularQueue.hpp"
 #include "ds/LinkedList.hpp"
 
-// Task 3. Master records live in a linked list. Each resource type has its own
-// circular queue of IDs, and rotating through it shares work evenly.
-//
-// This module is header-only. Functions defined inside a class are automatically
-// inline, so including this header in several .cpp files is safe.
 class ResourceModule {
 public:
     Result add(ResourceType type, const std::string& location, std::string& outId) {
@@ -44,7 +39,6 @@ public:
         return ResourceType::CollectionCounter;
     }
 
-    // Automatic: rotates through the matching queue at most once.
     Result assign(ServiceType service, const std::string& requestId, const std::string& parcelId,
                   std::string& outResourceId) {
         if (isRequestAssigned(requestId)) return Result::fail("Request " + requestId + " already has a resource.");
@@ -53,7 +47,6 @@ public:
         CircularQueue<std::string>& pool = pools[static_cast<int>(type)];
         if (pool.isEmpty()) return Result::fail("No " + toString(type) + " has been registered.");
 
-        // One full rotation at most. The next search starts after the resource chosen here.
         for (int checked = 0; checked < pool.size(); checked++) {
             std::string candidateId;
             pool.rotate(candidateId);
@@ -67,7 +60,6 @@ public:
         return Result::fail("Every " + toString(type) + " is busy or unavailable.");
     }
 
-    // Manual: staff choose the resource.
     Result assignChosen(const std::string& resourceId, ServiceType service, const std::string& requestId,
                         const std::string& parcelId) {
         if (isRequestAssigned(requestId)) return Result::fail("Request " + requestId + " already has a resource.");

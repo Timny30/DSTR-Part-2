@@ -12,7 +12,6 @@
 
 class ActivityModule {
 public:
-    // Assigns the ID, sequence and time, then returns the new Activity ID.
     std::string record(Activity activity) {
         activity.id = Validation::formatId("ACT", nextNumber, 4);
         activity.sequence = nextNumber;
@@ -29,7 +28,6 @@ public:
 
     bool isEmpty() const { return log.isEmpty(); }
 
-    // Oldest first, limited to the most recent `limit` activities.
     template <typename Fn>
     void forEachRecent(int limit, Fn fn) {
         int toSkip = log.size() - limit;
@@ -44,7 +42,6 @@ public:
         log.forEach([&](Activity& activity) { if (activity.parcelId == parcelId) fn(activity); });
     }
 
-    // Returns nullptr when nothing can be undone.
     Activity* peekUndoable() {
         std::string topId;
         if (!undoStack.peek(topId)) return nullptr;

@@ -10,9 +10,9 @@ struct Parcel {
     ParcelType type = ParcelType::Standard;
     std::string arrival;
     ParcelStatus status = ParcelStatus::Received;
-    ParcelRoute route = ParcelRoute::None;                    // chosen in Task 1
-    bool hasService = false;                                 // true once any request has been created
-    ServiceType serviceType = ServiceType::RecipientCollection;  // current or latest request
+    ParcelRoute route = ParcelRoute::None;                   
+    bool hasService = false;                               
+    ServiceType serviceType = ServiceType::RecipientCollection;  
 };
 
 struct ServiceRequest {
@@ -25,11 +25,11 @@ struct ServiceRequest {
     RequestStatus status = RequestStatus::Pending;
     bool urgent = false;
     int score = 0;
-    long sequence = 0;       // arrival order, used to break score ties
-    bool inHeap = false;     // true while an entry for this request is in the priority queue
-    std::string resourceId;  // resource handling this request, if any
+    long sequence = 0;   
+    bool inHeap = false;    
+    std::string resourceId;  
     ParcelStatus parcelStatusBeforeAssign = ParcelStatus::Processing;
-    std::string note;        // reason for cancellation or return
+    std::string note;   
 };
 
 struct Resource {
@@ -58,7 +58,6 @@ struct Activity {
     bool reversible = false;
     bool reversed = false;
 
-    // Saved state that undo restores.
     bool hasParcelBefore = false;
     Parcel parcelBefore;
     bool hasRequestBefore = false;

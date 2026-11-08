@@ -2,8 +2,6 @@
 #include <string>
 #include "ParcelSystem.hpp"
 
-// All console output lives in the menus. Row output starts with the record's ID,
-// and messages start with [OK], [ERROR] or [INFO].
 void runTask1Menu(ParcelSystem& system);
 void runTask2Menu(ParcelSystem& system);
 void runTask3Menu(ParcelSystem& system);
@@ -18,7 +16,6 @@ void printRequestRow(const ServiceRequest& request);
 void printResourceRow(const Resource& resource);
 void printActivityRow(const Activity& activity);
 
-// Field prompts shared by Task 1 and Task 5. Return false if the user cancels.
 bool promptParcelType(ParcelType& out);
 bool promptServiceType(ServiceType& out);
 bool promptNewParcelDetails(Parcel& parcel);

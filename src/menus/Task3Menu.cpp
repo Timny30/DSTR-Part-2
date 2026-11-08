@@ -68,7 +68,7 @@ void showUtilisation(ParcelSystem& system) {
     }
 }
 
-}  // namespace
+}  
 
 void runTask3Menu(ParcelSystem& system) {
     while (!Input::atEnd()) {

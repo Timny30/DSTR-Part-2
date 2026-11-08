@@ -1,9 +1,6 @@
 #pragma once
 #include <string>
 
-// This file is header-only. Functions here are marked inline, so including it in
-// several .cpp files doesn't create duplicate definitions.
-
 enum class ParcelType { Standard, Large, Fragile, Document, SpecialHandling };
 const int PARCEL_TYPE_COUNT = 5;
 
@@ -132,7 +129,6 @@ inline std::string toString(ActivityType value) {
     return "Unknown";
 }
 
-// Used when reading CSV files. Returns false if the text matches no value.
 inline bool parseParcelType(const std::string& text, ParcelType& out) {
     for (int i = 0; i < PARCEL_TYPE_COUNT; i++) {
         ParcelType candidate = static_cast<ParcelType>(i);
@@ -144,7 +140,6 @@ inline bool parseParcelType(const std::string& text, ParcelType& out) {
     return false;
 }
 
-// Used when reading CSV files. Returns false if the text matches no value.
 inline bool parseResourceType(const std::string& text, ResourceType& out) {
     for (int i = 0; i < RESOURCE_TYPE_COUNT; i++) {
         ResourceType candidate = static_cast<ResourceType>(i);
@@ -156,7 +151,6 @@ inline bool parseResourceType(const std::string& text, ResourceType& out) {
     return false;
 }
 
-// Collected, Delivered, Returned and Cancelled end a parcel's journey.
 inline bool isFinalStatus(ParcelStatus status) {
     return status == ParcelStatus::Collected || status == ParcelStatus::Delivered ||
            status == ParcelStatus::Returned || status == ParcelStatus::Cancelled;

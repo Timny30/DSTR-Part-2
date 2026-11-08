@@ -3,8 +3,6 @@
 #include <string>
 #include "core/Models.hpp"
 
-// This file is header-only. Functions here are marked inline, so including it in
-// several .cpp files doesn't create duplicate definitions.
 namespace Validation {
 
 inline bool isDigit(char c) { return std::isdigit(static_cast<unsigned char>(c)) != 0; }
@@ -84,7 +82,6 @@ inline bool isDateTime(const std::string& text) {
     return month >= 1 && month <= 12 && day >= 1 && day <= 31 && hour <= 23 && minute <= 59;
 }
 
-// Returns an empty string if valid, otherwise the reason it isn't.
 inline std::string parcelFieldError(const Parcel& parcel) {
     if (parcel.recipientId.empty()) return "Recipient ID is required.";
     if (!isRecipientId(parcel.recipientId)) return "Recipient ID must be 3 to 12 letters or digits.";
@@ -94,11 +91,10 @@ inline std::string parcelFieldError(const Parcel& parcel) {
     return "";
 }
 
-// formatId("REQ", 7, 4) returns "REQ0007".
 inline std::string formatId(const std::string& prefix, int number, int width) {
     std::string digits = std::to_string(number);
     while (static_cast<int>(digits.size()) < width) digits = "0" + digits;
     return prefix + digits;
 }
 
-}  // namespace Validation
+} 

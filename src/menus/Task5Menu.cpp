@@ -85,7 +85,7 @@ void displayStructure(ParcelSystem& system) {
               ", tree height: " + std::to_string(system.organisation().height()) + ".");
 }
 
-}  // namespace
+} 
 
 void runTask5Menu(ParcelSystem& system) {
     while (!Input::atEnd()) {

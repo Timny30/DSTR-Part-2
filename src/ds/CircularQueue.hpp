@@ -1,14 +1,10 @@
 #pragma once
 
-// Fixed-size circular queue on an array. Holds resources of one type, and
-// rotating through them shares work evenly (round-robin allocation).
-// Enqueue and rotate are O(1), because indexes wrap instead of items moving.
 template <typename T, int Capacity = 16>
 class CircularQueue {
 public:
     CircularQueue() : head(0), count(0) {}
 
-    // Returns false when the queue is full.
     bool enqueue(const T& value) {
         if (isFull()) return false;
         items[(head + count) % Capacity] = value;
@@ -16,7 +12,6 @@ public:
         return true;
     }
 
-    // Returns the front item and moves it to the rear.
     bool rotate(T& out) {
         if (isEmpty()) return false;
         out = items[head];

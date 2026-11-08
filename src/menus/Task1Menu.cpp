@@ -29,7 +29,6 @@ void listPending(ParcelSystem& system) {
     if (count == 0) printInfo("There are no parcels waiting for a route.");
 }
 
-// Task 1 only saves the route. The parcel moves on when Task 2 creates its request.
 void promptAndRoute(ParcelSystem& system, const std::string& parcelId) {
     std::cout << "Route:\n  1. Recipient collection\n  2. Campus delivery\n  3. Special handling\n"
               << "  4. Return to sender\n  5. Hold for investigation\n";
@@ -95,7 +94,7 @@ void viewParcel(ParcelSystem& system) {
     printParcelRow(*parcel);
 }
 
-}  // namespace
+}
 
 void runTask1Menu(ParcelSystem& system) {
     while (!Input::atEnd()) {
