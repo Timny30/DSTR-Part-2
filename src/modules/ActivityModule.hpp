@@ -7,6 +7,9 @@
 #include "ds/LinkedList.hpp"
 #include "ds/Stack.hpp"
 
+// linked list is the permanent log, ordered by time order;
+// stack holds only the IDs of activities that can still be undone.
+
 class ActivityModule {
 public:
     std::string record(Activity activity) {
@@ -50,6 +53,7 @@ public:
         undoStack.pop(discarded);
     }
 
+    // Return True if permanent action happened to this parcel.
     bool hasPermanentAfter(const std::string& parcelId, long sequence) {
         bool found = false;
         log.forEach([&](const Activity& activity) {

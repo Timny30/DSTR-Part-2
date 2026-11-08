@@ -54,7 +54,7 @@ void undoActivity(ParcelSystem& system) {
     }
 }
 
-}  
+}
 
 void runTask4Menu(ParcelSystem& system) {
     while (!Input::atEnd()) {

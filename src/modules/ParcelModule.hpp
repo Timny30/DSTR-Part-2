@@ -85,6 +85,7 @@ public:
                           ". Create its service request in Task 2.");
     }
 
+    // The only place for changing status. (Includes checks rules and logging)
     Result changeStatus(const std::string& parcelId, ParcelStatus next, const std::string& staffId,
                         const StatusChangeOptions& options = StatusChangeOptions()) {
         Parcel* parcel = organisation.find(parcelId);
@@ -106,7 +107,7 @@ public:
         activity.newStatus = next;
         activity.staffId = staffId;
         activity.note = options.note;
-
+        // Once a parcel has physically left, the action cannot be undone.
         activity.reversible = options.reversible && next != ParcelStatus::Collected &&
                               next != ParcelStatus::Delivered && next != ParcelStatus::Returned;
         activity.hasParcelBefore = true;
